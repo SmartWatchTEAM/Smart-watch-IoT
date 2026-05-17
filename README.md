@@ -9,7 +9,9 @@ Hệ thống có khả năng:
 - Đo nhịp tim theo đơn vị BPM.
 - Đo nồng độ oxy trong máu SpO2.
 - Phát hiện té ngã bằng cảm biến gia tốc MPU6050.
-- Hiển thị dữ liệu sức khỏe trên màn hình TFT ST7789V3 1.69 inch.
+- Hiển thị dữ liệu sức khỏe trên màn hình TFT ST
+
+7789V3 1.69 inch.
 - Phát cảnh báo bằng buzzer khi phát hiện té ngã hoặc khi người dùng bấm nút SOS.
 - Sử dụng pin LiPo 3.7V kết hợp module sạc TP4056 + DW01.
 
