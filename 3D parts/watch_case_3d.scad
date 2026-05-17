@@ -4,7 +4,7 @@
 // Units: mm. Open with OpenSCAD. Set VIEW to: "assembly", "shell", "bezel", "backplate", "components".
     
 $fn = 128;
-VIEW = "backplate";
+VIEW = "shell";
 SHOW_COMPONENTS = true;
 
 // ==== Main dimensions ====
@@ -135,8 +135,8 @@ module shell_body() {
         translate([0, 4, case_z - bezel_z - 1.8])
             rounded_box(display_pcb[0] + 0.6, display_pcb[1] + 0.6, 2.2, 2.0);
 
-        // 4. Cổng sạc Type-C (Đã dịch phải X = 8.5 khớp với Tray)
-        translate([8.5, -case_h / 2 - 0.1, 8.2]) {
+        // 4. Cổng sạc Type-C
+        translate([0, -case_h / 2 - 0.1, 8.2]) {
             rotate([90, 0, 0]) {
                 hull() {
                     translate([-3.25, 0, 0]) cylinder(h = 5.0, d = 4.5, center = true);
@@ -232,7 +232,6 @@ module components() {
 
     comp_box(max30102mod, [0, -2, 0.8], [0.65, 0.05, 0.05, 0.60]);
 }
-
 
 if (VIEW == "shell") {
     // Tự động lật úp bề mặt màn hình xuống bàn in Z=0 để bề mặt trơn láng nhất
