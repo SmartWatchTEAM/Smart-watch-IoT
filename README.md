@@ -663,7 +663,7 @@ Dự án đáp ứng các tiêu chí cơ bản của một đồ án IoT/Embedde
 | Ứng dụng thực tế | Hướng đến giám sát người cao tuổi |
 | Tính tích hợp | Kết hợp nhiều module phần cứng trên ESP32-S3 |
 | Tính mở rộng | Có thể mở rộng WiFi, cloud, app, GPS |
-| Tính hoàn thiện | Có pin, sạc, cảm biến, hiển thị và cảnh báo |
+| Tính hoàn thiện | Có pin, sạc, cảm biến, hiển thị và cảnh báo | 
 
 ---
 
