@@ -168,6 +168,7 @@ function normalizeStats(result) {
     bpm_series: Array.isArray(data.bpm_series) ? data.bpm_series : [],
     spo2_series: Array.isArray(data.spo2_series) ? data.spo2_series : [],
     battery_series: Array.isArray(data.battery_series) ? data.battery_series : [],
+    steps_series: Array.isArray(data.steps_series) ? data.steps_series : [],
   };
 }
 
@@ -187,61 +188,158 @@ function renderChart(result) {
   const ctx = document.getElementById("statsChart");
   const hasData = hasStatsData(result);
 
+  if (!ctx) return;
+
   if (chartInstance) {
     chartInstance.destroy();
   }
 
+  const labels = hasData ? result.labels : [];
+  const bpmData = hasData ? result.bpm_series : [];
+  const spo2Data = hasData ? result.spo2_series : [];
+  const batteryData = hasData ? result.battery_series : [];
+
   chartInstance = new Chart(ctx, {
     type: "line",
     data: {
-      labels: hasData ? result.labels : [],
+      labels,
       datasets: [
         {
           label: "BPM",
-          data: hasData ? result.bpm_series : [],
-          borderWidth: 2,
+          data: bpmData,
+          yAxisID: "yBpm",
+          borderColor: "#38bdf8",
+          backgroundColor: "rgba(56, 189, 248, 0.16)",
+          pointBackgroundColor: "#38bdf8",
+          pointBorderColor: "#38bdf8",
+          borderWidth: 2.5,
           tension: 0.35,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          fill: false,
+          spanGaps: true,
         },
         {
           label: "SpO2",
-          data: hasData ? result.spo2_series : [],
-          borderWidth: 2,
+          data: spo2Data,
+          yAxisID: "ySpo2",
+          borderColor: "#ff4d6d",
+          backgroundColor: "rgba(255, 77, 109, 0.16)",
+          pointBackgroundColor: "#ff4d6d",
+          pointBorderColor: "#ff4d6d",
+          borderWidth: 2.5,
           tension: 0.35,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          fill: false,
+          spanGaps: true,
         },
         {
           label: "Battery",
-          data: hasData ? result.battery_series : [],
+          data: batteryData,
+          yAxisID: "ySpo2",
+          borderColor: "#f59e0b",
+          backgroundColor: "rgba(245, 158, 11, 0.16)",
+          pointBackgroundColor: "#f59e0b",
+          pointBorderColor: "#f59e0b",
           borderWidth: 2,
           tension: 0.35,
           hidden: true,
+          fill: false,
+          spanGaps: true,
         }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        mode: "index",
+        intersect: false,
+      },
       plugins: {
         legend: {
           labels: {
-            color: "#cbd5e1"
+            color: "#cbd5e1",
+            usePointStyle: false,
+            boxWidth: 46,
+            boxHeight: 10,
+            font: {
+              size: 13,
+              weight: "700"
+            }
+          }
+        },
+        tooltip: {
+          enabled: true,
+          backgroundColor: "rgba(15, 23, 42, 0.96)",
+          titleColor: "#f8fafc",
+          bodyColor: "#cbd5e1",
+          borderColor: "rgba(148, 163, 184, 0.22)",
+          borderWidth: 1,
+          padding: 12,
+          callbacks: {
+            label(context) {
+              const label = context.dataset.label || "";
+              const value = context.parsed.y;
+
+              if (value === null || value === undefined) return `${label}: --`;
+              if (label === "BPM") return `${label}: ${value} BPM`;
+              if (label === "SpO2") return `${label}: ${value}%`;
+              if (label === "Battery") return `${label}: ${value}%`;
+
+              return `${label}: ${value}`;
+            }
           }
         }
       },
       scales: {
         x: {
           ticks: {
-            color: "#94a3b8"
+            color: "#94a3b8",
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 8,
           },
           grid: {
             color: "rgba(148,163,184,0.12)"
           }
         },
-        y: {
+        yBpm: {
+          type: "linear",
+          position: "left",
+          min: 40,
+          max: 160,
           ticks: {
             color: "#94a3b8"
           },
           grid: {
             color: "rgba(148,163,184,0.12)"
+          },
+          title: {
+            display: true,
+            text: "BPM",
+            color: "#94a3b8"
+          }
+        },
+        ySpo2: {
+          type: "linear",
+          position: "right",
+          min: 80,
+          max: 100,
+          ticks: {
+            color: "#94a3b8",
+            callback(value) {
+              return `${value}%`;
+            }
+          },
+          grid: {
+            drawOnChartArea: false
+          },
+          title: {
+            display: true,
+            text: "SpO2 (%)",
+            color: "#94a3b8"
           }
         }
       }
@@ -380,7 +478,7 @@ async function exportStatsToPDF() {
                 <th style="padding:12px;text-align:left;">Thời gian</th>
                 <th style="padding:12px;text-align:left;">BPM</th>
                 <th style="padding:12px;text-align:left;">SpO2</th>
-                <th style="padding:12px;text-align:left;">Battery</th>
+                <th style="padding:12px;text-align:left;">Số bước</th>
               </tr>
             </thead>
 
@@ -464,16 +562,26 @@ function buildReportRows() {
   const labels = currentStats.labels ?? [];
   const bpm = currentStats.bpm_series ?? [];
   const spo2 = currentStats.spo2_series ?? [];
-  const battery = currentStats.battery_series ?? [];
+  const steps = currentStats.steps_series ?? [];
 
   return labels.map((label, index) => `
     <tr style="background:${index % 2 === 0 ? "#ffffff" : "#f8fafc"};">
       <td style="padding:11px 12px;border:1px solid #e2e8f0;">${label}</td>
       <td style="padding:11px 12px;border:1px solid #e2e8f0;">${bpm[index] ?? ""}</td>
       <td style="padding:11px 12px;border:1px solid #e2e8f0;">${spo2[index] ?? ""}</td>
-      <td style="padding:11px 12px;border:1px solid #e2e8f0;">${battery[index] ?? ""}</td>
+      <td style="padding:11px 12px;border:1px solid #e2e8f0;">${formatSteps(steps[index])}</td>
     </tr>
   `).join("");
+}
+
+function formatSteps(value) {
+  if (value === undefined || value === null || value === "") return "";
+
+  const number = Number(value);
+
+  if (Number.isNaN(number)) return "";
+
+  return Math.round(number).toLocaleString("vi-VN");
 }
 
 function showMessage(message, type = "info") {
@@ -533,6 +641,7 @@ function getEmptyStats() {
     bpm_series: [],
     spo2_series: [],
     battery_series: [],
+    steps_series: [],
   };
 }
 

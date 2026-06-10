@@ -100,7 +100,8 @@ function buildStatsResult({ mode, date = null, month = null, rows, groupByDay = 
       labels: [],
       bpm_series: [],
       spo2_series: [],
-      battery_series: []
+      battery_series: [],
+      steps_series: []
     };
   }
 
@@ -131,7 +132,8 @@ function buildStatsResult({ mode, date = null, month = null, rows, groupByDay = 
     labels: cleanRows.map(row => formatTimeLabel(row)),
     bpm_series: cleanRows.map(row => valueOrNull(row.bpm)),
     spo2_series: cleanRows.map(row => valueOrNull(row.spo2)),
-    battery_series: cleanRows.map(row => valueOrNull(row.battery))
+    battery_series: cleanRows.map(row => valueOrNull(row.battery)),
+    steps_series: cleanRows.map(row => valueOrNull(row.steps))
   };
 }
 
@@ -158,6 +160,7 @@ function buildMonthGroupedStats({ mode, month, rows }) {
       avg_bpm: average(dayRows.map(row => row.bpm)),
       avg_spo2: average(dayRows.map(row => row.spo2)),
       avg_battery: average(dayRows.map(row => row.battery)),
+      steps: maxValid(dayRows.map(row => row.steps)),
       total_fall: countTrue(dayRows.map(row => row.fall)),
       total_sos: countTrue(dayRows.map(row => row.sos)),
       total_records: dayRows.length
@@ -183,7 +186,8 @@ function buildMonthGroupedStats({ mode, month, rows }) {
     labels: dayStats.map(row => row.label),
     bpm_series: dayStats.map(row => row.avg_bpm),
     spo2_series: dayStats.map(row => row.avg_spo2),
-    battery_series: dayStats.map(row => row.avg_battery)
+    battery_series: dayStats.map(row => row.avg_battery),
+    steps_series: dayStats.map(row => row.steps)
   };
 }
 
@@ -204,6 +208,16 @@ function average(values) {
 
   const result = valid.reduce((sum, value) => sum + value, 0) / valid.length;
   return Number(result.toFixed(1));
+}
+
+function maxValid(values) {
+  const valid = values
+    .map(value => Number(value))
+    .filter(value => !Number.isNaN(value) && value >= 0);
+
+  if (!valid.length) return null;
+
+  return Math.max(...valid);
 }
 
 function countTrue(values) {
