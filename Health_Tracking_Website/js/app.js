@@ -1,108 +1,186 @@
-import { DEVICE_ID } from "./config/firebaseConfig.js";
-import {
-  initFirebaseRealtime,
-  listenTodayHistory,
-  listenDailySummary
-} from "./services/firebaseService.js";
+import { firebaseConfig, DEVICE_ID } from "./config/firebaseConfig.js";
 import { renderSidebar } from "./core/sidebar.js";
-import { router } from "./core/router.js";
 import {
   updateHeaderByTab,
   setOnlineStatus,
   initNotificationCenter,
   updateNotificationCenter
 } from "./core/header.js";
-import { getTodayKey, getLastUpdateText } from "./utils/format.js";
+import { router } from "./core/router.js";
 
 const state = {
   currentTab: "overview",
-  latestData: null,
+  deviceId: DEVICE_ID || "watch_001",
+  latestData: {},
   historyRows: [],
   dailySummary: {},
-  firstOnlineTime: null,
   lastUpdateTime: null,
+  isOnline: false,
+  firebaseReady: false,
+  firebaseError: ""
 };
 
-function boot() {
-  renderSidebar(state.currentTab, navigateTo);
-  updateHeaderByTab(state.currentTab);
-  initNotificationCenter(state);
-  renderCurrentPage();
-  bindRealtimeData();
-  startHeaderClock();
-  refreshRelativeTime();
+function $(id) {
+  return document.getElementById(id);
 }
 
-function navigateTo(tabName) {
-  state.currentTab = tabName || "overview";
-  renderSidebar(state.currentTab, navigateTo);
-  updateHeaderByTab(state.currentTab);
-  renderCurrentPage();
+function getTodayKey() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function isFirebaseConfigPlaceholder() {
+  const values = [
+    firebaseConfig?.apiKey,
+    firebaseConfig?.messagingSenderId,
+    firebaseConfig?.appId
+  ];
+
+  return values.some((value) => {
+    const text = String(value || "");
+    return !text || text.includes("DAN_") || text.includes("CUA_BAN");
+  });
+}
+
+function updateSidebarDevice() {
+  const name = $("sidebarDeviceName");
+  const time = $("sidebarTime");
+  const date = $("sidebarDate");
+  const dot = document.querySelector(".sidebar-device .status-dot");
+  const statusText = document.querySelector(".sidebar-device-status span:last-child");
+  const sync = document.querySelector(".sidebar-device-sync");
+
+  if (name) name.textContent = state.deviceId;
+
+  const now = new Date();
+  if (time) time.textContent = now.toLocaleTimeString("vi-VN", { hour12: false });
+  if (date) date.textContent = now.toLocaleDateString("vi-VN");
+
+  if (statusText) {
+    if (state.firebaseError) statusText.textContent = "Firebase Config Error";
+    else statusText.textContent = state.isOnline ? "Device Online" : "Waiting Data";
+  }
+
+  if (sync) {
+    if (state.firebaseError) sync.textContent = state.firebaseError;
+    else sync.textContent = state.isOnline ? "Firebase realtime" : "Chưa có dữ liệu";
+  }
+
+  if (dot) {
+    dot.style.background = state.isOnline ? "var(--green)" : "var(--orange)";
+    dot.style.boxShadow = state.isOnline ? "0 0 14px var(--green)" : "0 0 14px var(--orange)";
+  }
 }
 
 function renderCurrentPage() {
+  updateHeaderByTab(state.currentTab);
+  renderSidebar(state.currentTab, navigateTo);
   router(state);
+  updateSidebarDevice();
   updateNotificationCenter(state);
 }
 
-function bindRealtimeData() {
-  const todayKey = getTodayKey();
-
-  initFirebaseRealtime((data) => {
-    state.latestData = data;
-    state.lastUpdateTime = data ? Date.now() : null;
-
-    if (data && !state.firstOnlineTime) {
-      state.firstOnlineTime = Date.now();
-    }
-
-    setOnlineStatus(data ? `Online • ${new Date().toLocaleTimeString("vi-VN", { hour12: false })}` : "Waiting data...");
-    renderCurrentPage();
-  });
-
-  listenTodayHistory(todayKey, (rows) => {
-    state.historyRows = rows;
-    renderCurrentPage();
-  });
-
-  listenDailySummary(todayKey, (daily) => {
-    state.dailySummary = daily || {};
-    renderCurrentPage();
-  });
+function navigateTo(tabId) {
+  state.currentTab = tabId || "overview";
+  renderCurrentPage();
 }
 
-function startHeaderClock() {
-  const tick = () => {
-    const now = new Date();
-    const time = now.toLocaleTimeString("vi-VN", { hour12: false });
-    const date = now.toLocaleDateString("vi-VN");
+function showFirebaseConfigWarning() {
+  const page = $("pageContent");
+  if (!page) return;
 
-    const sideTime = document.getElementById("sidebarTime");
-    const sideDate = document.getElementById("sidebarDate");
-    const sideName = document.getElementById("sidebarDeviceName");
+  page.className = "page-content overview-page";
+  page.innerHTML = `
+    <div class="grid-12">
+      <div class="card span-12">
+        <h2 class="section-title">Dashboard đã chạy, nhưng Firebase chưa cấu hình đúng</h2>
+        <p class="section-desc">
+          File <b>js/config/firebaseConfig.js</b> vẫn đang dùng giá trị mẫu như
+          <b>DAN_API_KEY_CUA_BAN</b>, <b>DAN_MESSAGING_SENDER_ID</b>, <b>DAN_APP_ID</b>.
+          Vì vậy web chưa thể kết nối Firebase để lấy dữ liệu.
+        </p>
+        <div class="insight-list" style="margin-top:16px;">
+          <div class="insight-item">
+            <div class="insight-title">Cần sửa</div>
+            <div class="insight-desc">Vào Firebase Project Settings → Your apps → Web app → SDK setup and configuration → copy firebaseConfig thật.</div>
+          </div>
+          <div class="insight-item">
+            <div class="insight-title">File cần sửa</div>
+            <div class="insight-desc">Health_Tracking_Website/js/config/firebaseConfig.js</div>
+          </div>
+        </div>
+      </div>
 
-    if (sideTime) sideTime.textContent = time;
-    if (sideDate) sideDate.textContent = date;
-    if (sideName) sideName.textContent = DEVICE_ID;
-  };
-
-  tick();
-  setInterval(tick, 1000);
+      <div class="card span-3"><div class="card-head"><div class="label">Heart Rate</div></div><div class="value-row"><span class="value heart">--</span><span class="unit">BPM</span></div><div class="pill">MAX30102</div></div>
+      <div class="card span-3"><div class="card-head"><div class="label">SpO2</div></div><div class="value-row"><span class="value cyan-text">--</span><span class="unit">%</span></div><div class="pill">Blood Oxygen</div></div>
+      <div class="card span-3"><div class="card-head"><div class="label">Fall Detection</div></div><div class="value-row"><span class="value orange-text">--</span></div><div class="pill">Waiting Data</div></div>
+      <div class="card span-3"><div class="card-head"><div class="label">SOS Alert</div></div><div class="value-row"><span class="value red-text">--</span></div><div class="pill">Waiting Data</div></div>
+    </div>
+  `;
 }
 
-function refreshRelativeTime() {
-  setInterval(() => {
-    if (state.latestData && state.lastUpdateTime) {
-      const onlineText = `Online • ${getLastUpdateText(state.lastUpdateTime)}`;
-      setOnlineStatus(onlineText);
-    }
+async function initFirebaseListeners() {
+  if (isFirebaseConfigPlaceholder()) {
+    state.firebaseError = "Thiếu Firebase config thật";
+    state.isOnline = false;
+    setOnlineStatus("Config Error");
+    updateSidebarDevice();
+    showFirebaseConfigWarning();
+    return;
+  }
 
-    if (state.currentTab === "overview") {
+  try {
+    const {
+      initFirebaseRealtime,
+      listenTodayHistory,
+      listenDailySummary
+    } = await import("./services/firebaseService.js");
+
+    const todayKey = getTodayKey();
+
+    initFirebaseRealtime((data) => {
+      state.latestData = data || {};
+      state.isOnline = Boolean(data);
+      state.lastUpdateTime = data ? Date.now() : null;
+      setOnlineStatus(data ? "Online" : "Waiting Data");
       renderCurrentPage();
-    } else {
-      updateNotificationCenter(state);
-    }
-  }, 5000);
+    });
+
+    listenTodayHistory(todayKey, (rows) => {
+      state.historyRows = Array.isArray(rows) ? rows : [];
+      renderCurrentPage();
+    });
+
+    listenDailySummary(todayKey, (daily) => {
+      state.dailySummary = daily || {};
+      renderCurrentPage();
+    });
+
+    state.firebaseReady = true;
+    setOnlineStatus("Connecting...");
+  } catch (error) {
+    console.error("Firebase init error:", error);
+    state.firebaseError = "Firebase JS Error";
+    state.isOnline = false;
+    setOnlineStatus("Firebase Error");
+    updateSidebarDevice();
+    showFirebaseConfigWarning();
+  }
 }
 
-document.addEventListener("DOMContentLoaded", boot);
+function init() {
+  initNotificationCenter(state);
+  renderSidebar(state.currentTab, navigateTo);
+  updateHeaderByTab(state.currentTab);
+  setOnlineStatus("Connecting...");
+  router(state);
+  updateSidebarDevice();
+
+  setInterval(updateSidebarDevice, 1000);
+  initFirebaseListeners();
+}
+
+document.addEventListener("DOMContentLoaded", init);

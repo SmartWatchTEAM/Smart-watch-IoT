@@ -5,7 +5,7 @@ import {
 
 import { db } from "./firebaseService.js";
 
-import { DEVICE_ID } from "../config/firebaseConfig.js";
+const DEVICE_ID = "watch_001";
 
 export async function getStatsByDay(dateValue) {
   const date = dateValue || getTodayString();
@@ -31,7 +31,8 @@ export async function getStatsByMonth(monthValue) {
 }
 
 async function readDayRows(date) {
-  const snapshot = await get(ref(db, `devices/${DEVICE_ID}/history/${date}`));
+  const path = `devices/${DEVICE_ID}/history/${date}`;
+  const snapshot = await get(ref(db, path));
 
   if (!snapshot.exists()) {
     return [];

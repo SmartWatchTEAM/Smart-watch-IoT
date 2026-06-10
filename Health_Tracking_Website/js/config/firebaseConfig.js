@@ -1,14 +1,13 @@
 // Firebase config của web dashboard
-// Vào Firebase Console → Project settings → Your apps → Web app → copy firebaseConfig thật dán vào đây.
 
 export const firebaseConfig = {
-  apiKey: "DAN_API_KEY_CUA_BAN",
+  apiKey: "AIzaSyDj0-W9UmNjQhJwnIp-MmJDKkk42PD0M84",
   authDomain: "smart-health-watch-2446b.firebaseapp.com",
   databaseURL: "https://smart-health-watch-2446b-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "smart-health-watch-2446b",
-  storageBucket: "smart-health-watch-2446b.appspot.com",
-  messagingSenderId: "DAN_MESSAGING_SENDER_ID",
-  appId: "DAN_APP_ID"
+  storageBucket: "smart-health-watch-2446b.firebasestorage.app",
+  messagingSenderId: "454390403989",
+  appId: "1:454390403989:web:f1cbb67b5c5a7dcd3b5c9c"
 };
 
 export const DEVICE_ID = "watch_001";

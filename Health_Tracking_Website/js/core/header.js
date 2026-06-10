@@ -1,11 +1,11 @@
 const tabMeta = {
   overview: {
     title: "Smart Health Watch",
-    subtitle: "Firebase Realtime IoT Health Dashboard",
+    subtitle: "Firebase Realtime IoT Dashboard",
   },
   stats: {
     title: "Thống kê sức khỏe",
-    subtitle: "Phân tích dữ liệu theo ngày/tháng từ Firebase History",
+    subtitle: "Phân tích dữ liệu trung bình theo ngày và theo tháng từ Firebase",
   },
   device: {
     title: "Quản lý thiết bị",
@@ -17,7 +17,7 @@ const tabMeta = {
   },
   settings: {
     title: "Cài đặt hệ thống",
-    subtitle: "Tùy chỉnh thiết bị, Firebase và giao diện dashboard",
+    subtitle: "Tùy chỉnh thiết bị, dữ liệu và giao diện dashboard",
   },
 };
 
