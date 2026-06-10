@@ -1,0 +1,183 @@
+/* =========================================================
+   responsive.css
+   Tối ưu màn hình nhỏ
+   ========================================================= */
+
+@media (max-width: 1180px) {
+  html,
+  body {
+    overflow-y: auto;
+  }
+
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: relative;
+    height: auto;
+    padding: 14px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  }
+
+  .sidebar-logo {
+    padding-bottom: 14px;
+  }
+
+  .sidebar-nav {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .sidebar-link {
+    justify-content: center;
+  }
+
+  .sidebar-link span:last-child {
+    display: none;
+  }
+
+  .sidebar-device {
+    display: none;
+  }
+
+  .main {
+    padding: 12px;
+  }
+
+  .span-2,
+  .span-3,
+  .span-4,
+  .span-5,
+  .span-6 {
+    grid-column: span 6;
+  }
+
+  .system-grid {
+    grid-template-columns: repeat(2, 1fr);
+    row-gap: 16px;
+  }
+
+  .system-item {
+    border-right: 0;
+  }
+
+  .device-flow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .shell {
+    padding: 18px;
+    border-radius: 22px;
+  }
+
+  .header {
+    display: block;
+  }
+
+  .header-actions {
+    margin-top: 16px;
+  }
+
+  .online {
+    display: inline-block;
+    min-width: auto;
+  }
+
+  .span-2,
+  .span-3,
+  .span-4,
+  .span-5,
+  .span-6,
+  .span-12 {
+    grid-column: span 12;
+  }
+
+  .weather-card {
+    display: block;
+  }
+
+  .cloud-art {
+    display: none;
+  }
+
+  .system-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .system-item {
+    padding: 10px 0;
+  }
+
+  .spark {
+    opacity: 0.45;
+  }
+
+  .sidebar-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .device-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-card canvas {
+    height: 230px !important;
+  }
+}
+
+@media (max-width: 1180px) {
+  .ppg-card,
+  .right-health-stack,
+  .activity-card-v2,
+  .overview-chart-card {
+    grid-column: span 12;
+  }
+
+  .right-health-stack {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .ppg-title-row,
+  .chart-head-v2 {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ppg-legend {
+    flex-wrap: wrap;
+  }
+
+  .right-health-stack,
+  .activity-grid-v2 {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-grid-v2 > div {
+    border-right: 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+    padding: 12px 0;
+  }
+
+  .activity-grid-v2 > div:last-child {
+    border-bottom: 0;
+  }
+
+  #ppgCanvas {
+    height: 260px !important;
+  }
+}
+
+@media (max-width: 1180px) {
+  .span-7,
+  .span-8,
+  .span-9,
+  .span-10 {
+    grid-column: span 12;
+  }
+}

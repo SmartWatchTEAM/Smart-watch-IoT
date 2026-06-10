@@ -1,0 +1,698 @@
+/* =========================================================
+   cards.css
+   Card, icon, giá trị, pill, thanh pin, chart trang tổng quát
+   ========================================================= */
+
+.card {
+  position: relative;
+  overflow: hidden;
+  min-height: 98px;
+  padding: 13px 15px;
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.88)),
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 42%);
+  border: 1px solid var(--border);
+  box-shadow:
+    var(--shadow-card),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: 0.25s ease;
+}
+
+.card:hover {
+  border-color: var(--border-strong);
+  box-shadow:
+    var(--shadow-card-hover),
+    0 0 34px rgba(56, 189, 248, 0.08);
+}
+
+.card::after {
+  content: "";
+  position: absolute;
+  inset: auto -20% -45% -20%;
+  height: 65%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.11), transparent 70%);
+  pointer-events: none;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: rgba(15, 23, 42, 0.7);
+  box-shadow: inset 0 0 18px rgba(255,255,255,0.04);
+  flex: 0 0 auto;
+}
+
+.icon svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 2.2;
+  filter: drop-shadow(0 0 7px currentColor);
+}
+
+.icon.red {
+  color: var(--red);
+  background: rgba(244, 63, 94, 0.14);
+  box-shadow: 0 0 22px rgba(244,63,94,.14);
+}
+
+.icon.cyan {
+  color: var(--cyan);
+  background: rgba(14, 165, 233, 0.14);
+  box-shadow: 0 0 22px rgba(14,165,233,.14);
+}
+
+.icon.green {
+  color: var(--green);
+  background: rgba(34, 197, 94, 0.14);
+  box-shadow: 0 0 22px rgba(34,197,94,.14);
+}
+
+.icon.orange {
+  color: var(--orange);
+  background: rgba(245, 158, 11, 0.14);
+  box-shadow: 0 0 22px rgba(245,158,11,.14);
+}
+
+.icon.purple {
+  color: var(--purple);
+  background: rgba(168, 85, 247, 0.14);
+  box-shadow: 0 0 22px rgba(168,85,247,.14);
+}
+
+.icon.yellow {
+  color: var(--yellow);
+  background: rgba(250, 204, 21, 0.14);
+  box-shadow: 0 0 22px rgba(250,204,21,.14);
+}
+
+.label {
+  color: #dbeafe;
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.value-row {
+  position: relative;
+  z-index: 1;
+  margin-top: 13px;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.value {
+  font-size: clamp(30px, 2.4vw, 42px);
+  font-weight: 900;
+  line-height: 0.9;
+  letter-spacing: -1px;
+}
+
+.unit {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 3px;
+  font-weight: 600;
+}
+
+.heart { color: var(--red); }
+.cyan-text { color: var(--cyan); }
+.green-text { color: var(--green); }
+.orange-text { color: var(--orange); }
+.red-text { color: var(--red); }
+.purple-text { color: var(--purple); }
+.yellow-text { color: var(--yellow); }
+
+.pill {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.12);
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.pill-ok {
+  background: rgba(34, 197, 94, 0.14);
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.22);
+}
+
+.pill-alert {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.spark {
+  position: absolute;
+  right: 12px;
+  bottom: 30px;
+  width: 44%;
+  height: 48px;
+  opacity: 0.95;
+  z-index: 1;
+}
+
+.spark svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 14px currentColor);
+}
+
+.spark.heart { color: var(--red); }
+.spark.cyan-text { color: var(--cyan); }
+
+.wave {
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  width: 55%;
+  height: 64px;
+  opacity: 0.9;
+  z-index: 0;
+}
+
+.wave svg {
+  width: 100%;
+  height: 100%;
+}
+
+.range {
+  position: relative;
+  z-index: 1;
+  margin-top: 14px;
+}
+
+.range-line {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+  overflow: hidden;
+}
+
+.range-line span {
+  display: block;
+  height: 100%;
+  width: 50%;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 18px currentColor;
+}
+
+.range-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: currentColor;
+  position: absolute;
+  top: -3.5px;
+  left: 50%;
+  transform: translateX(-50%);
+  box-shadow: 0 0 18px currentColor;
+}
+
+.range-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  color: #cbd5e1;
+  font-size: 11.5px;
+}
+
+.bar {
+  position: relative;
+  z-index: 1;
+  height: 8px;
+  background: rgba(148, 163, 184, 0.16);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 14px;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #22c55e, #84cc16);
+  border-radius: 999px;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.45);
+  transition: 0.3s;
+}
+
+.mini-card {
+  min-height: 92px;
+}
+
+.mini-card .value {
+  font-size: 34px;
+}
+
+.weather-card {
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding-right: 22px;
+}
+
+.weather-main {
+  position: relative;
+  z-index: 2;
+}
+
+.weather {
+  font-size: 18px;
+  font-weight: 800;
+  margin-top: 10px;
+  color: white;
+}
+
+.cloud-art {
+  position: relative;
+  width: 310px;
+  height: 108px;
+  flex: 0 0 auto;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.cloud-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  opacity: 0.96;
+  filter:
+    drop-shadow(0 0 18px rgba(56, 189, 248, 0.18))
+    drop-shadow(0 16px 30px rgba(2, 6, 23, 0.34));
+  mix-blend-mode: screen;
+}
+
+.system {
+  min-height: 86px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.system-title {
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.system-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.system-item {
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  padding: 2px 13px;
+  border-right: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.system-item:last-child {
+  border-right: 0;
+}
+
+.system-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(14, 165, 233, 0.12);
+  color: var(--cyan);
+  box-shadow: 0 0 24px rgba(14, 165, 233, 0.12);
+  flex: 0 0 auto;
+}
+
+.system-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.2;
+  filter: drop-shadow(0 0 7px currentColor);
+}
+
+.system-label {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+
+.system-value {
+  font-size: 14px;
+  font-weight: 800;
+  color: white;
+}
+
+.system-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #86efac;
+}
+
+/* =========================================================
+   Overview dashboard: PPG waveform + activity + history charts
+   Bám theo giao diện Smart Health Watch mới
+   ========================================================= */
+
+.smart-grid {
+  gap: 12px;
+}
+
+.top-health-card {
+  min-height: 176px;
+}
+
+.metric-row-main {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+  margin-top: 26px;
+}
+
+.metric-main {
+  font-size: 46px;
+  line-height: 0.88;
+  font-weight: 950;
+  letter-spacing: -1.4px;
+  color: white;
+}
+
+.status-chip {
+  margin-left: auto;
+  margin-bottom: 2px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.14);
+  border: 1px solid rgba(148, 163, 184, 0.08);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.status-chip.cyan-chip {
+  color: #7dd3fc;
+  background: rgba(14, 165, 233, 0.12);
+}
+
+.mini-chart-row {
+  position: relative;
+  z-index: 2;
+  margin-top: 24px;
+  min-height: 46px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.mini-chart-row canvas {
+  position: absolute;
+  right: 0;
+  bottom: -2px;
+  width: min(46%, 165px) !important;
+  height: 48px !important;
+}
+
+.ppg-card {
+  min-height: 318px;
+}
+
+.ppg-title-row {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.ppg-title-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ppg-title-left .label {
+  font-size: 16px;
+}
+
+.ppg-title-left .label span {
+  color: var(--muted-2);
+}
+
+.ppg-legend {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--muted-2);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.legend-ir {
+  background: var(--red);
+  box-shadow: 0 0 12px var(--red);
+}
+
+.legend-red {
+  background: var(--green);
+  box-shadow: 0 0 12px var(--green);
+}
+
+#ppgCanvas {
+  position: relative;
+  z-index: 2;
+  width: 100% !important;
+  height: 245px !important;
+  margin-top: 12px;
+  display: block;
+}
+
+.right-health-stack {
+  display: grid;
+  grid-template-rows: 1fr 0.65fr;
+  gap: 12px;
+}
+
+.signal-quality-card,
+.finger-detected-card {
+  min-height: 0;
+}
+
+.quality-ring {
+  --p: 0;
+  position: relative;
+  z-index: 2;
+  width: 128px;
+  height: 128px;
+  margin: 18px auto 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(var(--green) calc(var(--p) * 1%), rgba(148, 163, 184, 0.18) 0);
+  box-shadow: 0 0 26px rgba(34, 197, 94, 0.13);
+}
+
+.quality-ring::after {
+  content: "";
+  position: absolute;
+  inset: 13px;
+  border-radius: 50%;
+  background: rgba(2, 6, 23, 0.95);
+  box-shadow: inset 0 0 22px rgba(56, 189, 248, 0.08);
+}
+
+.quality-ring > div {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+}
+
+.quality-ring span {
+  display: block;
+  color: #86efac;
+  font-weight: 900;
+  font-size: 16px;
+}
+
+.quality-ring strong {
+  display: block;
+  margin-top: 5px;
+  color: white;
+  font-size: 28px;
+  font-weight: 950;
+}
+
+.finger-display {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.finger-display > span {
+  font-size: 36px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.finger-icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  opacity: 0.95;
+}
+
+.finger-icon svg {
+  width: 42px;
+  height: 42px;
+  stroke-width: 1.8;
+  filter: drop-shadow(0 0 12px currentColor);
+}
+
+.activity-card-v2 {
+  min-height: 236px;
+}
+
+.activity-title {
+  position: relative;
+  z-index: 2;
+  color: #e5e7eb;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.activity-title span {
+  color: var(--muted-2);
+}
+
+.activity-grid-v2 {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 24px;
+  gap: 0;
+}
+
+.activity-grid-v2 > div {
+  text-align: center;
+  border-right: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.activity-grid-v2 > div:last-child {
+  border-right: 0;
+}
+
+.activity-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 10px;
+}
+
+.activity-icon svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 2;
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+.activity-grid-v2 strong {
+  display: block;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.activity-grid-v2 small {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted-2);
+  font-size: 12px;
+}
+
+.goal-row {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  width: 138px;
+  margin-top: 18px;
+  color: var(--muted-2);
+  font-size: 12px;
+}
+
+.goal-row b {
+  color: white;
+}
+
+.overview-chart-card {
+  min-height: 236px;
+}
+
+.chart-head-v2 {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chart-head-v2 b {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.overview-chart-card canvas {
+  position: relative;
+  z-index: 2;
+  width: 100% !important;
+  height: 170px !important;
+  display: block;
+  margin-top: 12px;
+}

@@ -1,0 +1,89 @@
+/* =========================================================
+   base.css
+   Reset, biến màu, font, nền tổng thể
+   ========================================================= */
+
+:root {
+  --bg: #020617;
+  --bg-soft: #081225;
+
+  --panel: rgba(15, 23, 42, 0.88);
+  --panel-dark: rgba(2, 6, 23, 0.88);
+  --panel-soft: rgba(15, 23, 42, 0.58);
+
+  --border: rgba(148, 163, 184, 0.18);
+  --border-strong: rgba(56, 189, 248, 0.34);
+
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --muted-2: #cbd5e1;
+
+  --green: #22c55e;
+  --cyan: #38bdf8;
+  --blue: #3b82f6;
+  --red: #ff4d6d;
+  --orange: #f59e0b;
+  --yellow: #facc15;
+  --purple: #c084fc;
+
+  --radius-xl: 22px;
+  --radius-lg: 18px;
+  --radius-md: 14px;
+
+  --sidebar-width: 250px;
+  --shadow-card: 0 18px 42px rgba(0, 0, 0, 0.32);
+  --shadow-card-hover: 0 22px 58px rgba(0, 0, 0, 0.48);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
+  font-family: "Segoe UI", Arial, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(37, 99, 235, 0.32), transparent 32%),
+    radial-gradient(circle at 92% 10%, rgba(14, 165, 233, 0.16), transparent 28%),
+    radial-gradient(circle at 50% 100%, rgba(34, 197, 94, 0.08), transparent 35%),
+    linear-gradient(135deg, #081225 0%, #020617 48%, #000000 100%);
+  overflow-x: hidden;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, black, transparent 82%);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  user-select: none;
+}
+
+svg {
+  display: block;
+}
+
+.hidden {
+  display: none !important;
+}

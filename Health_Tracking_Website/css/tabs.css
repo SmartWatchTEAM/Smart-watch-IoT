@@ -1,0 +1,166 @@
+/* =========================================================
+   tabs.css
+   Giao diện riêng cho các tab ngoài Tổng quát
+   ========================================================= */
+
+.tab-page {
+  display: none;
+}
+
+.tab-page.active {
+  display: block;
+}
+
+.stats-page .card,
+.device-page .card,
+.alerts-page .card,
+.settings-page .card {
+  min-height: auto;
+}
+
+.section-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.section-desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.input,
+.select,
+.input-date,
+.input-month {
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0 14px;
+  color: var(--text);
+  background: rgba(15, 23, 42, 0.92);
+  outline: none;
+}
+
+.input:focus,
+.select:focus,
+.input-date:focus,
+.input-month:focus {
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.10);
+}
+
+.btn {
+  min-height: 42px;
+  border: 1px solid rgba(56, 189, 248, 0.32);
+  border-radius: 14px;
+  padding: 0 16px;
+  color: white;
+  font-weight: 800;
+  background: rgba(37, 99, 235, 0.28);
+  cursor: pointer;
+  transition: 0.22s ease;
+}
+
+.btn:hover {
+  box-shadow: 0 0 24px rgba(56, 189, 248, 0.12);
+  transform: translateY(-1px);
+}
+
+.btn-success {
+  border-color: rgba(34, 197, 94, 0.32);
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+}
+
+.kpi-card {
+  min-height: 132px;
+}
+
+.kpi-label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.kpi-value {
+  margin-top: 12px;
+  font-size: 36px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.kpi-note {
+  margin-top: 12px;
+  color: #86efac;
+  font-size: 12px;
+}
+
+.chart-card {
+  min-height: 340px;
+}
+
+.chart-card canvas {
+  width: 100% !important;
+  height: 270px !important;
+}
+
+.insight-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.insight-item {
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.62);
+  border: 1px solid var(--border);
+}
+
+.insight-title {
+  font-weight: 900;
+}
+
+.insight-desc {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.device-flow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.flow-node {
+  min-height: 110px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 14px;
+  background: rgba(37, 99, 235, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+}
+
+.flow-title {
+  font-weight: 900;
+}
+
+.flow-desc {
+  margin-top: 6px;
+  color: var(--muted-2);
+  font-size: 13px;
+}

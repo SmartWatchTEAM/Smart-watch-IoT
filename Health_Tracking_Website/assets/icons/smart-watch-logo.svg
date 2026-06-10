@@ -1,0 +1,41 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="watchStroke" x1="55" y1="28" x2="206" y2="228" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7DD3FC"/>
+      <stop offset="0.52" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="pulseStroke" x1="70" y1="126" x2="186" y2="126" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDA4AF"/>
+      <stop offset="0.45" stop-color="#FF4D6D"/>
+      <stop offset="1" stop-color="#F472B6"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.219 0 0 0 0 0.741 0 0 0 0 0.973 0 0 0 0.9 0" result="cyanGlow"/>
+      <feMerge>
+        <feMergeNode in="cyanGlow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="pulseGlow" x="-40%" y="-80%" width="180%" height="260%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 1 0 0 0 0 0.302 0 0 0 0 0.427 0 0 0 1 0" result="pinkGlow"/>
+      <feMerge>
+        <feMergeNode in="pinkGlow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect x="70" y="44" width="116" height="168" rx="42" fill="rgba(2,6,23,0.28)" stroke="url(#watchStroke)" stroke-width="8" filter="url(#glow)"/>
+  <path d="M92 44L100 18H156L164 44" stroke="url(#watchStroke)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+  <path d="M92 212L100 238H156L164 212" stroke="url(#watchStroke)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+
+  <rect x="83" y="70" width="90" height="116" rx="26" fill="rgba(15,23,42,0.78)" stroke="rgba(125,211,252,0.42)" stroke-width="3"/>
+
+  <path d="M72 132H94L103 111L119 157L132 96L147 147L157 126H184" stroke="url(#pulseStroke)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" filter="url(#pulseGlow)"/>
+
+  <circle cx="199" cy="128" r="6" fill="#38BDF8" opacity="0.75"/>
+  <circle cx="57" cy="128" r="6" fill="#38BDF8" opacity="0.75"/>
+</svg>
