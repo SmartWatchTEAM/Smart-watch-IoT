@@ -1,422 +1,405 @@
-# Smart Health Monitoring Device for Elderly People
+# IoT-based Medical Alert System for Elderly People
 
 ## 1. Giới thiệu dự án
 
-**Smart Health Monitoring Device for Elderly People** là thiết bị giám sát y tế thông minh dành cho người cao tuổi, được xây dựng trên nền tảng **ESP32-S3 Super Mini**.
+**IoT-based Medical Alert System for Elderly People** là đồ án xây dựng mô hình **đồng hồ giám sát sức khỏe thông minh cho người cao tuổi**. Hệ thống sử dụng **ESP32-S3 Super Mini** làm bộ xử lý trung tâm, kết hợp với cảm biến **MAX30102**, cảm biến chuyển động **MPU6500**, màn hình **TFT ST7789**, nút SOS, buzzer và nền tảng **Firebase Realtime Database** để theo dõi dữ liệu sức khỏe theo thời gian thực.
 
-Hệ thống có khả năng:
+Thiết bị được thiết kế theo hướng nhỏ gọn, có thể hiển thị trực tiếp thông tin trên màn hình TFT và đồng thời gửi dữ liệu lên web dashboard để người thân theo dõi từ xa. Khi phát hiện tình huống bất thường như té ngã hoặc người dùng nhấn giữ nút SOS, hệ thống sẽ kích hoạt cảnh báo tại thiết bị và cập nhật trạng thái lên Firebase để hỗ trợ gửi thông báo cảnh báo.
 
-- Đo nhịp tim theo đơn vị BPM.
-- Đo nồng độ oxy trong máu SpO2.
-- Phát hiện té ngã bằng cảm biến gia tốc MPU6050.
-- Hiển thị dữ liệu sức khỏe trên màn hình TFT ST
-
-7789V3 1.69 inch.
-- Phát cảnh báo bằng buzzer khi phát hiện té ngã hoặc khi người dùng bấm nút SOS.
-- Sử dụng pin LiPo 3.7V kết hợp module sạc TP4056 + DW01.
-
-Dự án hướng đến bài toán chăm sóc sức khỏe người cao tuổi tại nhà, đặc biệt trong các tình huống nguy hiểm như té ngã, bất động sau va chạm hoặc cần hỗ trợ khẩn cấp.
-
-> Lưu ý: Thiết bị này được phát triển cho mục đích học tập, nghiên cứu và minh họa ý tưởng IoT. Kết quả đo nhịp tim và SpO2 chỉ mang tính tham khảo, không thay thế thiết bị y tế chuyên dụng.
+> **Lưu ý:** Đây là mô hình phục vụ học tập, nghiên cứu và minh họa ứng dụng IoT trong chăm sóc sức khỏe. Kết quả đo BPM và SpO2 chỉ mang tính tham khảo, không thay thế thiết bị y tế chuyên dụng.
 
 ---
 
-## 2. Mục tiêu của hệ thống
+## 2. Thông tin đồ án
 
-Mục tiêu của dự án là xây dựng một thiết bị IoT nhỏ gọn, có khả năng giám sát một số thông số sức khỏe cơ bản và cảnh báo khi người cao tuổi gặp sự cố.
+| Nội dung | Thông tin |
+|---|---|
+| Tên đề tài | IoT-based Medical Alert System for Elderly People |
+| Môn học | Vạn vật kết nối - IoT |
+| Mã học phần / lớp | INOT231780_05 |
+| Nhóm thực hiện | Nhóm 11 |
+| Giảng viên hướng dẫn | ThS. Đinh Công Đoan |
+| Trường | Đại học Công nghệ Kỹ thuật TP. Hồ Chí Minh |
+| Khoa | Công nghệ thông tin |
+| Thời gian | Học kỳ 2, năm học 2025 - 2026 |
 
-Các mục tiêu chính gồm:
+### Thành viên thực hiện
 
-1. Thu thập dữ liệu nhịp tim và SpO2 từ cảm biến MAX30102/MAX30105.
-2. Theo dõi chuyển động cơ thể bằng cảm biến MPU6050.
-3. Phát hiện tình huống té ngã dựa trên gia tốc, góc nghiêng và trạng thái bất động.
-4. Hiển thị dữ liệu sức khỏe trực tiếp trên màn hình TFT.
-5. Cảnh báo bằng âm thanh khi phát hiện té ngã hoặc khi người dùng bấm nút SOS.
-6. Hỗ trợ sử dụng pin để thiết bị có thể hoạt động độc lập.
-7. Có khả năng mở rộng thêm WiFi, Bluetooth, Telegram, Firebase, MQTT hoặc ứng dụng điện thoại trong các phiên bản tiếp theo.
+| Họ và tên | MSSV |
+|---|---|
+| Trần Hải Đạt | 24110197 |
+| Nguyễn Lê Huy | 24110221 |
+| Ninh Nguyễn Minh Tuyên | 24110372 |
 
 ---
 
-## 3. Chức năng chính
+## 3. Mục tiêu hệ thống
 
-### 3.1. Đo nhịp tim BPM
+Mục tiêu của đề tài là xây dựng một mô hình đồng hồ sức khỏe IoT có khả năng hỗ trợ theo dõi một số thông số cơ bản của người cao tuổi và cảnh báo khi có tình huống nguy hiểm.
 
-Cảm biến MAX30102/MAX30105 sử dụng ánh sáng hồng ngoại để nhận biết sự thay đổi lưu lượng máu ở đầu ngón tay. Từ tín hiệu thu được, hệ thống tính toán nhịp tim theo đơn vị BPM.
+Các mục tiêu chính:
 
-Khi dữ liệu hợp lệ, màn hình hiển thị ví dụ:
+1. Đo nhịp tim BPM bằng cảm biến MAX30102.
+2. Đo nồng độ oxy trong máu SpO2 bằng cảm biến MAX30102.
+3. Đếm số bước chân bằng dữ liệu chuyển động từ MPU6500.
+4. Phát hiện té ngã dựa trên gia tốc, góc nghiêng và trạng thái bất động.
+5. Hiển thị thời gian, thời tiết, Wi-Fi, pin, BPM, SpO2 và số bước chân trên màn hình TFT ST7789.
+6. Kích hoạt cảnh báo khi phát hiện té ngã hoặc khi người dùng nhấn giữ nút SOS.
+7. Gửi dữ liệu sức khỏe và trạng thái cảnh báo lên Firebase Realtime Database.
+8. Hiển thị dữ liệu realtime, lịch sử đo và thống kê trên web dashboard.
+9. Hỗ trợ xuất báo cáo thống kê sức khỏe ra file PDF.
+
+---
+
+## 4. Chức năng chính
+
+### 4.1. Đo nhịp tim và SpO2
+
+Cảm biến **MAX30102** đọc tín hiệu ánh sáng đỏ và hồng ngoại từ người dùng. Sau khi thu thập đủ mẫu, chương trình xử lý tín hiệu để tính toán:
+
+- Nhịp tim theo đơn vị **BPM**.
+- Nồng độ oxy trong máu **SpO2**.
+- Trạng thái đặt tay lên cảm biến.
+- Chất lượng tín hiệu đo.
+
+Khi tín hiệu chưa ổn định hoặc chưa đặt tay đúng vị trí, giao diện sẽ hiển thị giá trị dạng `--` để tránh hiển thị sai.
+
+### 4.2. Đếm số bước chân
+
+Cảm biến **MPU6500** cung cấp dữ liệu gia tốc theo ba trục. Chương trình phân tích dao động gia tốc để xác định bước đi, từ đó cập nhật:
+
+- Tổng số bước trong ngày.
+- Mục tiêu bước chân.
+- Phần trăm hoàn thành mục tiêu.
+- Quãng đường ước tính.
+- Lượng calo ước tính.
+
+### 4.3. Phát hiện té ngã
+
+Hệ thống sử dụng MPU6500 để đo gia tốc, góc nghiêng và trạng thái chuyển động của thiết bị. Thuật toán phát hiện té ngã được xây dựng theo chuỗi trạng thái nhằm hạn chế báo động giả:
 
 ```text
-BPM: 78
-```
-
-Nếu chưa đặt ngón tay hoặc tín hiệu không ổn định, màn hình hiển thị:
-
-```text
-BPM: --
-```
-
-### 3.2. Đo nồng độ oxy trong máu SpO2
-
-MAX30102/MAX30105 sử dụng hai kênh ánh sáng đỏ và hồng ngoại để hỗ trợ tính toán nồng độ oxy trong máu.
-
-Khi dữ liệu hợp lệ, màn hình hiển thị ví dụ:
-
-```text
-SpO2: 98%
-```
-
-Nếu chưa đủ dữ liệu hoặc tín hiệu không hợp lệ, màn hình hiển thị:
-
-```text
-SpO2: --
-```
-
-### 3.3. Phát hiện té ngã
-
-Hệ thống sử dụng cảm biến MPU6050 để đo:
-
-- Gia tốc theo trục X, Y, Z.
-- Vận tốc góc theo trục X, Y, Z.
-- Góc nghiêng của thiết bị thông qua pitch và roll.
-
-Thuật toán phát hiện té ngã không chỉ dựa trên một giá trị tức thời, mà sử dụng chuỗi điều kiện nhằm hạn chế báo động giả:
-
-```text
-Bình thường
-→ Rơi tự do
-→ Va chạm mạnh
-→ Thiết bị nghiêng mạnh
-→ Bất động sau va chạm
+Hoạt động bình thường
+→ Nghi ngờ rơi tự do
+→ Phát hiện va chạm mạnh
+→ Kiểm tra góc nghiêng
+→ Kiểm tra bất động sau va chạm
 → Xác nhận té ngã
 ```
 
-Khi té ngã được xác nhận, màn hình hiển thị:
+Khi té ngã được xác nhận, thiết bị sẽ:
 
-```text
-FALL ALERT!
-```
+- Hiển thị trạng thái cảnh báo trên màn hình TFT.
+- Bật buzzer cảnh báo tại chỗ.
+- Cập nhật trạng thái `fall` lên Firebase.
+- Cho phép dashboard hiển thị cảnh báo để người thân theo dõi.
 
-Đồng thời buzzer sẽ kêu cảnh báo.
+### 4.4. Cảnh báo SOS
 
-### 3.4. Nút SOS
+Nút SOS được dùng để người dùng chủ động gửi cảnh báo khẩn cấp. Để hạn chế bấm nhầm, chức năng SOS được thiết kế theo dạng **nhấn giữ**.
 
-Nút SOS cho phép người dùng chủ động kích hoạt cảnh báo trong trường hợp khẩn cấp, chẳng hạn:
+Khi SOS được kích hoạt, hệ thống sẽ:
 
-- Khó thở.
-- Chóng mặt.
-- Đau ngực.
-- Mệt đột ngột.
-- Cần người thân hỗ trợ.
-- Không thể tự di chuyển.
+- Hiển thị cảnh báo SOS trên màn hình.
+- Phát âm thanh bằng buzzer.
+- Gửi trạng thái SOS lên Firebase.
+- Hỗ trợ hệ thống web/email thông báo cho người thân.
 
-Khi bấm nút SOS, hệ thống hiển thị:
+### 4.5. Hiển thị trên màn hình TFT
 
-```text
-SOS ALERT!
-```
+Màn hình **TFT ST7789 1.69 inch** hiển thị giao diện đồng hồ thông minh với các thông tin:
 
-và buzzer phát cảnh báo.
+- Thời gian và ngày tháng.
+- Trạng thái Wi-Fi.
+- Dung lượng pin.
+- Thời tiết hiện tại.
+- Nhịp tim BPM.
+- SpO2.
+- Số bước chân.
+- Trạng thái té ngã và SOS.
 
-### 3.5. Nút nguồn / điều khiển cảnh báo
+### 4.6. Web dashboard và Firebase
 
-Nút nguồn trong dự án được dùng như nút điều khiển chức năng:
+ESP32-S3 gửi dữ liệu lên **Firebase Realtime Database**. Web dashboard đọc dữ liệu từ Firebase và hiển thị trên trình duyệt máy tính hoặc điện thoại.
 
-| Thao tác | Chức năng |
+Dashboard hỗ trợ các nhóm chức năng:
+
+| Tab | Chức năng |
 |---|---|
-| Bấm ngắn | Tắt cảnh báo hiện tại |
-| Giữ khoảng 2 giây | Bật hoặc tắt màn hình TFT để tiết kiệm pin |
+| Tổng quát | Hiển thị realtime BPM, SpO2, bước chân, trạng thái cảnh báo |
+| Thống kê | Lọc dữ liệu theo ngày/tháng, biểu đồ BPM và SpO2, xuất PDF |
+| Thiết bị | Hiển thị trạng thái cảm biến, kết nối, Firebase latest/history |
+| Cảnh báo | Theo dõi Fall Detection, SOS Alert và bất thường sức khỏe |
+| Cài đặt | Cấu hình ngưỡng cảnh báo và thông tin hệ thống |
 
 ---
 
-## 4. Phần cứng sử dụng
+## 5. Linh kiện sử dụng
 
 | STT | Linh kiện | Chức năng |
 |---|---|---|
-| 1 | ESP32-S3 Super Mini | Vi điều khiển trung tâm |
-| 2 | MAX30102 / MAX30105 | Đo nhịp tim và SpO2 |
-| 3 | MPU6050 | Đo gia tốc, vận tốc góc và phát hiện té ngã |
-| 4 | TFT ST7789V3 1.69 inch 240x280 | Hiển thị thông tin sức khỏe |
-| 5 | Buzzer | Cảnh báo âm thanh |
-| 6 | Nút SOS | Kích hoạt cảnh báo khẩn cấp |
-| 7 | Nút nguồn | Tắt cảnh báo hoặc bật/tắt màn hình |
-| 8 | Pin LiPo 3.7V 1000mAh | Cấp nguồn di động |
-| 9 | TP4056 + DW01 | Sạc và bảo vệ pin LiPo |
-| 10 | Dây nối / breadboard / PCB | Kết nối mạch |
+| 1 | ESP32-S3 Super Mini | Bộ xử lý trung tâm, xử lý dữ liệu cảm biến và kết nối Wi-Fi |
+| 2 | MAX30102 | Đo nhịp tim và SpO2 |
+| 3 | MPU6500 | Đo gia tốc, con quay hồi chuyển, đếm bước chân và phát hiện té ngã |
+| 4 | TFT ST7789 1.69 inch | Hiển thị giao diện đồng hồ sức khỏe |
+| 5 | Nút chức năng | Chuyển màn hình hoặc điều khiển một số chức năng thiết bị |
+| 6 | Nút SOS | Kích hoạt cảnh báo khẩn cấp khi nhấn giữ |
+| 7 | Buzzer | Phát cảnh báo âm thanh khi có té ngã hoặc SOS |
+| 8 | Pin Li-Po 3.7V | Cấp nguồn cho thiết bị |
+| 9 | TP4056 + DW01 | Sạc và bảo vệ pin Li-Po |
+| 10 | Dây nối / nguồn cấp | Kết nối phần cứng và cấp nguồn thử nghiệm |
 
 ---
 
-## 5. Sơ đồ hệ thống
+## 6. Sơ đồ khối hệ thống
 
 ```text
-+-------------------------+
-|        Pin LiPo         |
-|     3.7V 1000mAh        |
-+------------+------------+
-             |
-             v
-+-------------------------+
-|      TP4056 + DW01      |
-|   Sạc và bảo vệ pin     |
-+------------+------------+
-             |
-             v
-+--------------------------------------+
-|          ESP32-S3 Super Mini         |
-|                                      |
-|  +--------------------------------+  |
-|  | MAX30102/MAX30105             |  |
-|  | Đo nhịp tim và SpO2           |  |
-|  +--------------------------------+  |
-|                                      |
-|  +--------------------------------+  |
-|  | MPU6050                        |  |
-|  | Đo gia tốc, phát hiện té ngã   |  |
-|  +--------------------------------+  |
-|                                      |
-|  +--------------------------------+  |
-|  | TFT ST7789V3                   |  |
-|  | Hiển thị dữ liệu               |  |
-|  +--------------------------------+  |
-|                                      |
-|  +--------------------------------+  |
-|  | Buzzer + Nút SOS               |  |
-|  | Cảnh báo khẩn cấp              |  |
-|  +--------------------------------+  |
-+--------------------------------------+
++-------------------+        I2C        +-------------------+
+|    MAX30102       | ----------------> |                   |
+|  BPM / SpO2       |                   |                   |
++-------------------+                   |                   |
+                                        |                   |
++-------------------+        I2C        |     ESP32-S3      |       SPI       +------------------+
+|     MPU6500       | ----------------> |    Super Mini     | --------------> |   TFT ST7789     |
+| Steps / Fall      |                   |                   |                 |    Display       |
++-------------------+                   |                   |                 +------------------+
+                                        |                   |
++-------------------+       GPIO        |                   |       GPIO      +------------------+
+|  Nút chức năng    | ----------------> |                   | --------------> |      Buzzer      |
+|  Nút SOS          |                   |                   |                 |   Cảnh báo       |
++-------------------+                   +---------+---------+                 +------------------+
+                                                  |
+                                                  | Wi-Fi / HTTPS
+                                                  v
+                                      +------------------------+
+                                      | Firebase Realtime DB   |
+                                      | latest / history /daily|
+                                      +-----------+------------+
+                                                  |
+                                                  v
+                                      +------------------------+
+                                      | Web Dashboard          |
+                                      | Realtime / Chart / PDF |
+                                      +------------------------+
 ```
 
 ---
 
-## 6. Sơ đồ nối chân
+## 7. Sơ đồ kết nối phần cứng
 
-> Lưu ý: Bảng dưới đây dựa trên cấu hình chân trong firmware. Nếu mạch thực tế nối khác GPIO, cần chỉnh lại các dòng `#define` trong code.
+> Bảng dưới đây được trình bày theo cấu hình phần cứng trong báo cáo đồ án. Nếu thay đổi chân GPIO trong firmware, cần cập nhật lại bảng này cho đồng bộ.
 
-### 6.1. Kết nối TFT ST7789V3 với ESP32-S3
+### 7.1. Cảm biến MAX30102
 
-| TFT ST7789V3 | ESP32-S3 Super Mini |
+| MAX30102 | ESP32-S3 Super Mini |
 |---|---|
+| SDA | GPIO 10 |
+| SCL | GPIO 11 |
 | VCC | 3.3V |
 | GND | GND |
-| SCL / SCK | GPIO12 |
-| SDA / MOSI | GPIO11 |
-| CS | GPIO10 |
-| DC | GPIO7 |
-| RST | GPIO6 |
-| BL / LED | GPIO5 |
 
-### 6.2. Kết nối MAX30102/MAX30105 và MPU6050
+### 7.2. Cảm biến MPU6500
 
-Hai cảm biến MAX30102/MAX30105 và MPU6050 dùng chung bus I2C.
-
-| MAX30102 / MPU6050 | ESP32-S3 Super Mini |
+| MPU6500 | ESP32-S3 Super Mini |
 |---|---|
+| SDA | GPIO 12 |
+| SCL | GPIO 13 |
 | VCC | 3.3V |
 | GND | GND |
-| SDA | GPIO8 |
-| SCL | GPIO9 |
 
-### 6.3. Kết nối buzzer và nút bấm
+### 7.3. Màn hình TFT ST7789
+
+| TFT ST7789 | ESP32-S3 Super Mini |
+|---|---|
+| SCLK | GPIO 2 |
+| MOSI | GPIO 3 |
+| CS | GPIO 6 |
+| RST | GPIO 4 |
+| DC | GPIO 5 |
+| BL | GPIO 7 |
+| VCC | 3.3V |
+| GND | GND |
+
+### 7.4. Nút nhấn
 
 | Thiết bị | ESP32-S3 Super Mini |
 |---|---|
-| Buzzer + | GPIO13 |
-| Buzzer - | GND |
-| Nút nguồn | GPIO4 và GND |
-| Nút SOS | GPIO14 và GND |
+| Nút chức năng | GPIO 9 |
+| Nút SOS | GPIO 15 |
 
 ---
 
-## 7. Nguyên lý hoạt động tổng quát
+## 8. Kiến trúc dữ liệu Firebase
 
-Sau khi được cấp nguồn, ESP32-S3 khởi tạo các ngoại vi gồm màn hình TFT, cảm biến MAX30102/MAX30105, cảm biến MPU6050, buzzer và các nút bấm.
-
-Nếu cảm biến không được tìm thấy, hệ thống sẽ hiển thị thông báo lỗi trên màn hình để người dùng kiểm tra lại dây nối.
-
-Trong quá trình hoạt động, chương trình liên tục thực hiện các tác vụ:
+Hệ thống sử dụng **Firebase Realtime Database** để lưu dữ liệu realtime và dữ liệu lịch sử.
 
 ```text
-1. Đọc trạng thái nút nguồn và nút SOS.
-2. Đọc dữ liệu gia tốc và gyro từ MPU6050.
-3. Phân tích dữ liệu MPU6050 để phát hiện té ngã.
-4. Đọc tín hiệu RED và IR từ MAX30102/MAX30105.
-5. Tính nhịp tim và SpO2 khi đủ dữ liệu.
-6. Hiển thị BPM, SpO2, trạng thái té ngã và biểu đồ IR lên màn hình.
-7. Kích hoạt buzzer nếu có cảnh báo té ngã hoặc SOS.
+devices/
+└── watch_001/
+    ├── latest/
+    │   ├── bpm
+    │   ├── spo2
+    │   ├── steps
+    │   ├── fall
+    │   ├── sos
+    │   ├── battery
+    │   ├── wifi
+    │   ├── timeText
+    │   ├── dateText
+    │   └── updatedAt
+    │
+    ├── history/
+    │   └── YYYY-MM-DD/
+    │       └── auto-id hoặc timestamp
+    │           ├── bpm
+    │           ├── spo2
+    │           ├── steps
+    │           ├── fall
+    │           ├── sos
+    │           └── createdAt
+    │
+    └── daily/
+        └── YYYY-MM-DD/
+            └── summary/
+                ├── steps
+                ├── stepGoal
+                ├── distanceKm
+                ├── calories
+                └── updatedAt
 ```
+
+Ý nghĩa các nhánh chính:
+
+| Nhánh | Chức năng |
+|---|---|
+| `latest` | Lưu trạng thái mới nhất của thiết bị để dashboard hiển thị realtime |
+| `history/YYYY-MM-DD` | Lưu lịch sử đo theo ngày để vẽ biểu đồ và thống kê |
+| `daily/YYYY-MM-DD/summary` | Lưu tổng hợp dữ liệu vận động trong ngày |
 
 ---
 
-## 8. Thuật toán đo nhịp tim và SpO2
+## 9. Nguyên lý hoạt động
 
-Cảm biến MAX30102/MAX30105 phát ánh sáng đỏ và hồng ngoại vào ngón tay. Dựa vào tín hiệu phản xạ, hệ thống thu được hai giá trị chính:
+Khi thiết bị được cấp nguồn, ESP32-S3 tiến hành khởi tạo màn hình TFT, cảm biến MAX30102, cảm biến MPU6500, nút nhấn, buzzer và kết nối Wi-Fi.
 
-| Tín hiệu | Ý nghĩa |
-|---|---|
-| RED | Tín hiệu ánh sáng đỏ |
-| IR | Tín hiệu hồng ngoại |
+Nếu Wi-Fi kết nối thành công, hệ thống đồng bộ thời gian NTP và lấy dữ liệu thời tiết từ Internet. Nếu Wi-Fi chưa kết nối, thiết bị vẫn có thể đo và hiển thị dữ liệu cục bộ trên màn hình.
 
-Quy trình xử lý:
+Trong vòng lặp chính, hệ thống thực hiện các tác vụ:
 
-```text
-Bước 1: Đọc giá trị RED và IR từ cảm biến.
-Bước 2: Kiểm tra có đặt ngón tay lên cảm biến hay chưa.
-Bước 3: Nếu chưa có ngón tay, reset dữ liệu và hiển thị yêu cầu đặt tay.
-Bước 4: Nếu có ngón tay, lưu dữ liệu vào bộ đệm.
-Bước 5: Khi đủ số mẫu, gọi thuật toán tính BPM và SpO2.
-Bước 6: Hiển thị kết quả lên TFT.
-```
-
-Ngưỡng nhận biết ngón tay trong firmware:
-
-```cpp
-const uint32_t FINGER_THRESHOLD = 50000;
-```
-
-Nếu tín hiệu IR nhỏ hơn ngưỡng này, hệ thống xem như chưa có ngón tay đặt lên cảm biến.
+1. Đọc trạng thái nút chức năng và nút SOS.
+2. Đọc tín hiệu IR/Red từ MAX30102.
+3. Kiểm tra người dùng đã đặt tay lên cảm biến hay chưa.
+4. Thu thập đủ mẫu và tính BPM, SpO2.
+5. Đọc dữ liệu gia tốc và góc nghiêng từ MPU6500.
+6. Đếm bước chân và kiểm tra điều kiện té ngã.
+7. Cập nhật giao diện TFT theo màn hình hiện tại.
+8. Bật buzzer nếu có cảnh báo Fall hoặc SOS.
+9. Gửi dữ liệu realtime và lịch sử lên Firebase khi Wi-Fi hoạt động.
+10. Web dashboard đọc dữ liệu Firebase để hiển thị và xuất báo cáo.
 
 ---
 
-## 9. Thuật toán phát hiện té ngã
+## 10. Cấu trúc firmware ESP32
 
-### 9.1. Dữ liệu sử dụng
+Firmware được chia thành nhiều file `.ino` để dễ quản lý theo từng chức năng:
 
-MPU6050 cung cấp dữ liệu gia tốc và gyro. Firmware chuyển gia tốc sang đơn vị g và tính tổng gia tốc:
-
-```text
-fallAccMag = sqrt(ax² + ay² + az²)
-```
-
-Ngoài ra, hệ thống tính thêm:
-
-| Biến | Ý nghĩa |
+| File | Vai trò |
 |---|---|
-| `fallAccMag` | Tổng gia tốc theo 3 trục |
-| `fallPitch` | Góc nghiêng theo hướng pitch |
-| `fallRoll` | Góc nghiêng theo hướng roll |
-| `gyroMag` | Tổng vận tốc góc |
-| `fallState` | Trạng thái hiện tại của thuật toán té ngã |
-
-### 9.2. Các ngưỡng phát hiện
-
-| Ngưỡng | Giá trị | Ý nghĩa |
-|---|---|---|
-| `FREE_FALL_THRESHOLD` | 0.55g | Nghi ngờ rơi tự do |
-| `IMPACT_THRESHOLD` | 2.4g | Va chạm mạnh |
-| `ANGLE_THRESHOLD` | 60 độ | Thiết bị nghiêng mạnh |
-| `GYRO_STILL_THRESHOLD` | 1.0 | Ít chuyển động |
-| `STILL_TIME` | 2000 ms | Bất động trong 2 giây |
-
-### 9.3. Máy trạng thái phát hiện té ngã
-
-Firmware sử dụng máy trạng thái gồm các trạng thái:
-
-| Trạng thái | Ý nghĩa |
-|---|---|
-| `FALL_NORMAL` | Hoạt động bình thường |
-| `FALL_FREE` | Nghi ngờ rơi tự do |
-| `FALL_IMPACT` | Phát hiện va chạm mạnh |
-| `FALL_CHECK_STILL` | Kiểm tra bất động sau va chạm |
-| `FALL_CONFIRMED` | Xác nhận té ngã |
-
-Luồng hoạt động:
-
-```text
-FALL_NORMAL
-    |
-    | Nếu fallAccMag < 0.55g
-    v
-FALL_FREE
-    |
-    | Nếu fallAccMag > 2.4g
-    v
-FALL_IMPACT
-    |
-    | Nếu |pitch| hoặc |roll| > 60 độ
-    v
-FALL_CHECK_STILL
-    |
-    | Nếu ít chuyển động trong 2 giây
-    v
-FALL_CONFIRMED
-    |
-    v
-Kích hoạt FALL ALERT!
-```
-
-Cách xử lý này giúp giảm báo động giả so với việc chỉ dùng một ngưỡng gia tốc duy nhất.
+| `SmartWatch.ino` | File chính, khai báo biến toàn cục, `setup()` và `loop()` |
+| `01_Button.ino` | Xử lý nút chức năng, nút SOS và thao tác người dùng |
+| `02_I2C.ino` | Khởi tạo và kiểm tra bus I2C |
+| `03_WiFi_Time_Weather.ino` | Kết nối Wi-Fi, đồng bộ thời gian NTP và lấy dữ liệu thời tiết |
+| `04_MAX30102.ino` | Đọc MAX30102, xử lý BPM và SpO2 |
+| `05_MPU6500.ino` | Đọc MPU6500, tính gia tốc và góc nghiêng |
+| `06_StepTracker.ino` | Đếm bước chân, tính quãng đường và calo |
+| `07_UI_Common.ino` | Các hàm vẽ giao diện chung |
+| `08_UI_Home.ino` | Giao diện màn hình chính |
+| `09_UI_Health.ino` | Giao diện đo sức khỏe BPM và SpO2 |
+| `10_UI_Steps.ino` | Giao diện bước chân |
+| `11_Alert_Buzzer.ino` | Xử lý cảnh báo và buzzer |
+| `12_Firebase.ino` | Gửi dữ liệu latest, history và daily summary lên Firebase |
 
 ---
 
-## 10. Cảnh báo và điều khiển buzzer
+## 11. Cấu trúc web dashboard
 
-Hệ thống có hai loại cảnh báo:
+Web dashboard được xây dựng bằng **HTML, CSS và JavaScript**, kết nối trực tiếp với Firebase Realtime Database.
 
-| Cảnh báo | Điều kiện kích hoạt |
-|---|---|
-| `FALL ALERT!` | Thuật toán xác nhận té ngã |
-| `SOS ALERT!` | Người dùng bấm nút SOS |
-
-Khi có cảnh báo, buzzer kêu theo chu kỳ bật/tắt:
+Cấu trúc thư mục đề xuất:
 
 ```text
-200 ms bật
-200 ms tắt
+web-dashboard/
+├── index.html
+├── css/
+│   ├── base.css
+│   ├── layout.css
+│   ├── sidebar.css
+│   ├── cards.css
+│   ├── tabs.css
+│   └── responsive.css
+├── js/
+│   ├── app.js
+│   ├── config/
+│   │   └── firebaseConfig.js
+│   ├── core/
+│   │   ├── header.js
+│   │   ├── router.js
+│   │   └── sidebar.js
+│   ├── services/
+│   │   ├── firebaseService.js
+│   │   └── statsService.js
+│   ├── tabs/
+│   │   ├── overviewTab.js
+│   │   ├── statsTab.js
+│   │   ├── deviceTab.js
+│   │   ├── alertsTab.js
+│   │   └── settingsTab.js
+│   └── utils/
+│       └── format.js
+└── assets/
+    └── icons/
 ```
-
-Mục đích là tạo âm báo dễ nhận biết và tiết kiệm năng lượng hơn so với bật liên tục.
-
-Người dùng có thể bấm ngắn nút nguồn để tắt cảnh báo hiện tại.
-
----
-
-## 11. Giao diện hiển thị TFT
-
-Giao diện chính trên màn hình TFT ST7789V3:
-
-```text
-SMART HEALTH
-
-BPM: --
-SpO2: --
-
-Fall: OK
-
-IR Wave | Acc: 1.00g
-```
-
-Ý nghĩa các thành phần:
-
-| Thành phần | Ý nghĩa |
-|---|---|
-| `SMART HEALTH` | Tên hệ thống |
-| `BPM` | Nhịp tim |
-| `SpO2` | Nồng độ oxy trong máu |
-| `Fall: OK` | Chưa phát hiện té ngã |
-| `FALL ALERT!` | Đã phát hiện té ngã |
-| `SOS ALERT!` | Người dùng đã bấm nút SOS |
-| `IR Wave` | Biểu đồ tín hiệu hồng ngoại từ MAX30102/MAX30105 |
-| `Acc` | Tổng gia tốc từ MPU6050 |
 
 ---
 
 ## 12. Cài đặt phần mềm
 
-### 12.1. Yêu cầu
+### 12.1. Phần mềm cần có
 
 - Arduino IDE 2.x.
 - ESP32 board package by Espressif Systems.
-- Cáp USB có truyền dữ liệu.
-- ESP32-S3 Super Mini.
+- Trình duyệt web hiện đại như Chrome, Edge hoặc Firefox.
+- Firebase project có bật Realtime Database.
+- Node.js hoặc Firebase CLI nếu cần deploy web dashboard.
 
-### 12.2. Cài ESP32 board package
+### 12.2. Thư viện Arduino cần cài
 
 Trong Arduino IDE, vào:
+
+```text
+Sketch > Include Library > Manage Libraries
+```
+
+Cài các thư viện:
+
+| Thư viện | Chức năng |
+|---|---|
+| Adafruit GFX Library | Thư viện đồ họa cơ bản |
+| Adafruit ST7735 and ST7789 Library | Điều khiển màn hình TFT ST7789 |
+| SparkFun MAX3010x Pulse and Proximity Sensor Library | Đọc cảm biến MAX30102 |
+| Wire | Giao tiếp I2C |
+| WiFi | Kết nối Wi-Fi ESP32 |
+| HTTPClient | Gửi request HTTP/HTTPS |
+
+### 12.3. Cài ESP32 board package
+
+Trong Arduino IDE:
 
 ```text
 File > Preferences
 ```
 
-Thêm URL sau vào mục `Additional Boards Manager URLs`:
+Thêm URL sau vào `Additional Boards Manager URLs`:
 
 ```text
 https://espressif.github.io/arduino-esp32/package_esp32_index.json
@@ -434,88 +417,58 @@ Tìm và cài:
 esp32 by Espressif Systems
 ```
 
-### 12.3. Chọn board và cổng nạp
+---
 
-Trong Arduino IDE, chọn:
+## 13. Cách chạy firmware
+
+### Bước 1: Mở project firmware
+
+Mở file chính:
 
 ```text
-Tools > Board > esp32 > ESP32S3 Dev Module
+SmartWatch.ino
 ```
 
-Sau đó chọn cổng COM tương ứng:
+Arduino IDE sẽ tự mở các file `.ino` còn lại trong cùng thư mục.
+
+### Bước 2: Chọn board
+
+```text
+Tools > Board > ESP32S3 Dev Module
+```
+
+### Bước 3: Chọn cổng COM
 
 ```text
 Tools > Port > COMx
 ```
 
-Nếu upload bị kẹt ở dòng `Connecting...`, giữ nút `BOOT` trên ESP32-S3 trong lúc upload, sau đó thả ra khi quá trình nạp bắt đầu.
+### Bước 4: Cấu hình Wi-Fi và Firebase
 
----
+Trong firmware, cập nhật các thông tin:
 
-## 13. Thư viện cần cài
-
-Vào:
-
-```text
-Sketch > Include Library > Manage Libraries
+```cpp
+const char* WIFI_SSID = "TEN_WIFI";
+const char* WIFI_PASSWORD = "MAT_KHAU_WIFI";
 ```
 
-Cài các thư viện sau:
-
-| Thư viện | Chức năng |
-|---|---|
-| Adafruit GFX Library | Thư viện đồ họa cơ bản |
-| Adafruit ST7735 and ST7789 Library | Điều khiển màn hình TFT ST7789 |
-| Adafruit MPU6050 | Đọc cảm biến MPU6050 |
-| Adafruit Unified Sensor | Thư viện cảm biến dùng chung |
-| SparkFun MAX3010x Pulse and Proximity Sensor Library | Đọc cảm biến MAX30102/MAX30105 |
-
----
-
-## 14. Cách chạy chương trình
-
-### Bước 1: Kết nối phần cứng
-
-Kết nối các module với ESP32-S3 theo sơ đồ chân trong mục 6.
-
-### Bước 2: Mở firmware trong Arduino IDE
-
-Mở file:
+Cấu hình Firebase theo project của nhóm:
 
 ```text
-smart_health_monitor.ino
+Firebase Realtime Database URL
+Firebase Auth / Secret hoặc cấu hình xác thực tương ứng
+Device ID: watch_001
 ```
 
-### Bước 3: Chọn board
+### Bước 5: Nạp chương trình
 
-```text
-Board: ESP32S3 Dev Module
-Port: COMx
-```
+Bấm `Verify`, sau đó bấm `Upload`.
 
-### Bước 4: Biên dịch
-
-Bấm nút `Verify`.
-
-Nếu không có lỗi, Arduino IDE sẽ báo:
-
-```text
-Done compiling
-```
-
-### Bước 5: Nạp code
-
-Bấm nút `Upload`.
-
-Nếu nạp thành công, Arduino IDE sẽ báo:
-
-```text
-Done uploading
-```
+Nếu upload bị dừng ở `Connecting...`, giữ nút `BOOT` trên ESP32-S3 trong lúc upload, sau đó thả ra khi quá trình nạp bắt đầu.
 
 ### Bước 6: Kiểm tra Serial Monitor
 
-Mở Serial Monitor với baudrate:
+Mở Serial Monitor ở baudrate:
 
 ```text
 115200
@@ -525,97 +478,134 @@ Kết quả mong đợi:
 
 ```text
 MAX30102 SUCCESS
-MPU6050 SUCCESS
-HR = 78 | Valid HR = 1 | SpO2 = 98 | Valid SpO2 = 1
+MPU6500 SUCCESS
+WiFi SUCCESS
+Firebase telemetry OK
 ```
 
 ---
 
-## 15. Cấu trúc thư mục đề xuất khi đưa lên GitHub
+## 14. Cách chạy web dashboard
+
+### 14.1. Chạy bằng Live Server
+
+Mở thư mục web dashboard trong VS Code, sau đó mở file:
 
 ```text
-smart-health-monitoring-device/
-│
-├── README.md
-├── firmware/
-│   └── smart_health_monitor.ino
-│
-├── images/
-│   ├── circuit_diagram.png
-│   ├── hardware_setup.jpg
-│   └── demo_screen.jpg
-│
-├── docs/
-│   ├── report.pdf
-│   └── presentation.pdf
-│
-└── LICENSE
+index.html
 ```
 
-Gợi ý:
+Chọn:
 
-- Đặt ảnh mạch vào thư mục `images/`.
-- Đặt code Arduino vào thư mục `firmware/`.
-- Đặt báo cáo hoặc slide vào thư mục `docs/`.
+```text
+Open with Live Server
+```
 
----
+### 14.2. Deploy bằng Firebase Hosting
 
-## 16. Kiểm thử hệ thống
+Cài Firebase CLI:
 
-### 16.1. Kiểm thử cảm biến MAX30102/MAX30105
+```bash
+npm install -g firebase-tools
+```
 
-| Trường hợp kiểm thử | Kết quả mong đợi |
-|---|---|
-| Không đặt ngón tay | Hiển thị `BPM: --`, `SpO2: --` |
-| Đặt ngón tay lên cảm biến | Sau một thời gian hiển thị BPM và SpO2 |
-| Nhấc ngón tay ra | Dữ liệu đo được reset |
-| Đặt tay lệch cảm biến | Kết quả có thể không ổn định |
+Đăng nhập Firebase:
 
-### 16.2. Kiểm thử cảm biến MPU6050
+```bash
+firebase login
+```
 
-| Trường hợp kiểm thử | Kết quả mong đợi |
-|---|---|
-| Thiết bị đứng yên | Hiển thị `Fall: OK` |
-| Lắc nhẹ thiết bị | Không báo té ngã |
-| Mô phỏng rơi và va chạm | Có thể chuyển sang trạng thái cảnh báo |
-| Sau va chạm thiết bị nằm yên | Hiển thị `FALL ALERT!`, buzzer kêu |
+Khởi tạo hosting nếu chưa có:
 
-### 16.3. Kiểm thử nút SOS và nút nguồn
+```bash
+firebase init hosting
+```
 
-| Trường hợp kiểm thử | Kết quả mong đợi |
-|---|---|
-| Bấm nút SOS | Hiển thị `SOS ALERT!`, buzzer kêu |
-| Bấm ngắn nút nguồn khi đang cảnh báo | Tắt cảnh báo |
-| Giữ nút nguồn khoảng 2 giây | Bật hoặc tắt màn hình TFT |
+Deploy:
+
+```bash
+firebase deploy
+```
+
+Sau khi deploy, có thể truy cập dashboard bằng link Firebase Hosting của project.
 
 ---
 
-## 17. Kết quả đạt được
+## 15. Kiểm thử hệ thống
 
-Hệ thống đã thực hiện được các chức năng cơ bản của một thiết bị giám sát y tế thông minh:
+### 15.1. Kiểm thử MAX30102
 
-- Đọc dữ liệu từ cảm biến MAX30102/MAX30105.
-- Tính toán và hiển thị nhịp tim BPM.
-- Tính toán và hiển thị SpO2.
-- Đọc dữ liệu gia tốc và gyro từ MPU6050.
-- Phát hiện té ngã dựa trên nhiều điều kiện.
-- Hiển thị dữ liệu trên màn hình TFT ST7789V3.
-- Cảnh báo bằng buzzer khi phát hiện té ngã hoặc khi bấm SOS.
-- Hỗ trợ nút tắt cảnh báo và bật/tắt màn hình.
+| Trường hợp | Kết quả mong đợi |
+|---|---|
+| Chưa đặt tay lên cảm biến | Hiển thị `BPM: --`, `SpO2: --` |
+| Đặt tay đúng vị trí và giữ yên | Sau khi đủ mẫu, hiển thị BPM và SpO2 |
+| Tay rung hoặc đặt lệch | Có thể hiển thị `--` hoặc báo tín hiệu chưa ổn định |
+| Nhấc tay ra khỏi cảm biến | Hệ thống dừng đo và chờ đặt tay lại |
+
+### 15.2. Kiểm thử MPU6500
+
+| Trường hợp | Kết quả mong đợi |
+|---|---|
+| Thiết bị đứng yên | Không báo té ngã |
+| Di chuyển nhẹ | Không báo té ngã, có thể đếm bước |
+| Mô phỏng rơi/va chạm/nghiêng mạnh | Có thể kích hoạt kiểm tra té ngã |
+| Sau va chạm thiết bị nằm yên | Xác nhận `Fall Alert` nếu thỏa điều kiện |
+
+### 15.3. Kiểm thử SOS và buzzer
+
+| Trường hợp | Kết quả mong đợi |
+|---|---|
+| Nhấn giữ nút SOS | Kích hoạt SOS Alert |
+| Có Fall hoặc SOS | Buzzer phát cảnh báo |
+| Tắt cảnh báo theo thao tác nút | Buzzer dừng cảnh báo |
+
+### 15.4. Kiểm thử Firebase và dashboard
+
+| Trường hợp | Kết quả mong đợi |
+|---|---|
+| ESP32 có Wi-Fi | Dữ liệu cập nhật vào `latest` |
+| Đo xong BPM/SpO2 hợp lệ | Lưu bản ghi vào `history/YYYY-MM-DD` |
+| Có Fall/SOS | Dashboard hiển thị cảnh báo |
+| Chọn ngày/tháng trong tab Thống kê | Biểu đồ và bảng lịch sử được hiển thị |
+| Bấm xuất PDF | Tạo báo cáo thống kê sức khỏe |
 
 ---
 
-## 18. Hạn chế của hệ thống
+## 16. Kết quả đạt được
 
-Dự án hiện tại vẫn còn một số hạn chế:
+Hệ thống đã đạt được các chức năng chính của đề tài:
 
-- Kết quả BPM và SpO2 chỉ mang tính tham khảo.
-- Thuật toán té ngã cần hiệu chỉnh thêm theo vị trí đeo thiết bị thực tế.
-- Có thể xảy ra báo động giả khi thiết bị bị rơi hoặc bị lắc mạnh.
-- Chưa có chức năng gửi cảnh báo qua WiFi, Telegram, app điện thoại hoặc cloud server.
-- Chưa có GPS để gửi vị trí người dùng khi xảy ra sự cố.
-- Chưa có vỏ thiết bị hoàn chỉnh để đeo trên tay hoặc gắn trên người.
-- Thiết kế nguồn cần được kiểm tra kỹ để đảm bảo an toàn khi dùng pin LiPo.
+- Đọc và xử lý tín hiệu từ cảm biến MAX30102.
+- Hiển thị nhịp tim BPM và SpO2 trên màn hình TFT.
+- Đọc dữ liệu MPU6500 để tính chuyển động, số bước chân và hỗ trợ phát hiện té ngã.
+- Xây dựng giao diện đồng hồ sức khỏe gồm Home, Health và Steps.
+- Kết nối Wi-Fi để đồng bộ thời gian và lấy dữ liệu thời tiết.
+- Gửi dữ liệu sức khỏe và trạng thái thiết bị lên Firebase.
+- Xây dựng web dashboard theo dõi realtime, lịch sử đo và cảnh báo.
+- Hỗ trợ xuất báo cáo thống kê sức khỏe ra PDF.
+
+---
+
+## 17. Khó khăn và cách khắc phục
+
+| Khó khăn | Cách khắc phục |
+|---|---|
+| Chọn sai board trong Arduino IDE | Cài ESP32 board package và chọn đúng ESP32S3 Dev Module |
+| Thiếu thư viện TFT hoặc MAX30102 | Cài thư viện trong Library Manager |
+| MAX30102 dễ bị nhiễu | Điều chỉnh LED, giữ tay ổn định, kiểm tra IR/Red và lọc tín hiệu |
+| Té ngã dễ báo sai nếu chỉ dùng một ngưỡng | Xây dựng thuật toán nhiều trạng thái gồm rơi tự do, va chạm, góc nghiêng và bất động |
+| Wi-Fi không ổn định | Cho thiết bị chạy cục bộ khi mất mạng và reconnect khi cần gửi Firebase |
+| Dữ liệu lịch sử chưa đủ | Chỉ lưu history khi có dữ liệu đo hợp lệ và duy trì gửi định kỳ |
+
+---
+
+## 18. Hạn chế
+
+- Kết quả BPM và SpO2 chỉ mang tính tham khảo, chưa đạt chuẩn thiết bị y tế.
+- Cảm biến MAX30102 nhạy với vị trí đặt tay, ánh sáng bên ngoài và chuyển động.
+- Thuật toán phát hiện té ngã cần tiếp tục hiệu chỉnh khi thay đổi vị trí đeo thực tế.
+- Mô hình chưa có vỏ đồng hồ hoàn chỉnh và chưa tối ưu hoàn toàn về năng lượng.
+- Chưa tích hợp GPS thực tế để gửi vị trí khi có cảnh báo.
 
 ---
 
@@ -623,61 +613,44 @@ Dự án hiện tại vẫn còn một số hạn chế:
 
 Trong các phiên bản tiếp theo, hệ thống có thể được mở rộng:
 
-1. Gửi cảnh báo té ngã qua WiFi.
-2. Gửi tin nhắn Telegram cho người thân.
-3. Gửi dữ liệu lên Firebase hoặc MQTT server.
-4. Xây dựng ứng dụng điện thoại để theo dõi từ xa.
-5. Thêm GPS để gửi vị trí khi có cảnh báo.
-6. Lưu lịch sử BPM và SpO2.
-7. Tối ưu thuật toán phát hiện té ngã bằng machine learning.
-8. Thiết kế PCB riêng cho hệ thống.
-9. Thiết kế vỏ đeo tay nhỏ gọn.
-10. Tối ưu tiêu thụ năng lượng để kéo dài thời lượng pin.
+1. Thiết kế vỏ đồng hồ và dây đeo hoàn chỉnh.
+2. Tối ưu thuật toán lọc nhiễu MAX30102 để tăng độ ổn định BPM/SpO2.
+3. Bổ sung GPS để gửi vị trí khi có Fall Alert hoặc SOS.
+4. Tối ưu tiêu thụ năng lượng để kéo dài thời lượng pin.
+5. Tích hợp Firebase Cloud Messaging hoặc ứng dụng mobile để gửi push notification.
+6. Thêm eSIM hoặc kết nối dữ liệu di động để hoạt động khi không có Wi-Fi.
+7. Thử nghiệm với nhiều người dùng hơn để đánh giá độ ổn định.
+8. Thiết kế PCB riêng cho mô hình thiết bị đeo.
+9. Bổ sung cảm biến nhiệt độ hoặc cảm biến huyết áp nếu điều kiện cho phép.
 
 ---
 
-## 20. Lưu ý về nguồn pin LiPo
+## 20. Lưu ý an toàn về nguồn pin
 
-Module TP4056 + DW01 có chức năng sạc và bảo vệ pin LiPo, nhưng không phải lúc nào cũng cung cấp điện áp ổn định cho toàn bộ hệ thống.
+Module **TP4056 + DW01** có chức năng sạc và bảo vệ pin Li-Po 1 cell. Khi sử dụng cần lưu ý:
 
-Cần lưu ý:
-
-- Không cấp trực tiếp pin LiPo đầy 4.2V vào chân 3.3V của ESP32.
-- Nếu cấp vào chân 5V/VIN, nên dùng mạch boost 5V ổn định.
-- Cần kiểm tra cực tính pin trước khi cấp nguồn.
-- Không sạc pin khi mạch bị chập hoặc nóng bất thường.
-- Khi làm sản phẩm thực tế, nên dùng module quản lý pin chuyên dụng hơn.
+- Không đấu ngược cực pin.
+- Không sạc khi pin hoặc module nóng bất thường.
+- Không để pin bị chập mạch.
+- Cần kiểm tra mức điện áp phù hợp trước khi cấp cho ESP32-S3 và các cảm biến.
+- Với sản phẩm thực tế, nên sử dụng mạch quản lý nguồn chuyên dụng và vỏ bảo vệ an toàn.
 
 ---
 
-## 21. Tiêu chí đánh giá đồ án IoT
+## 21. Tài liệu tham khảo chính
 
-Dự án đáp ứng các tiêu chí cơ bản của một đồ án IoT/Embedded System:
+Một số nhóm tài liệu được sử dụng trong quá trình thực hiện:
 
-| Tiêu chí | Mô tả |
-|---|---|
-| Cảm biến | Có cảm biến sinh học MAX30102/MAX30105 và cảm biến chuyển động MPU6050 |
-| Xử lý dữ liệu | Có xử lý BPM, SpO2, gia tốc, góc nghiêng và trạng thái cảnh báo |
-| Thiết bị đầu ra | Có màn hình TFT và buzzer |
-| Tương tác người dùng | Có nút SOS và nút nguồn |
-| Ứng dụng thực tế | Hướng đến giám sát người cao tuổi |
-| Tính tích hợp | Kết hợp nhiều module phần cứng trên ESP32-S3 |
-| Tính mở rộng | Có thể mở rộng WiFi, cloud, app, GPS |
-| Tính hoàn thiện | Có pin, sạc, cảm biến, hiển thị và cảnh báo | 
+- Tài liệu về Internet of Things và kiến trúc hệ thống IoT.
+- Tài liệu ESP32-S3 và lập trình Arduino IDE.
+- Datasheet MAX30102.
+- Tài liệu MPU6500.
+- Tài liệu màn hình TFT ST7789 và thư viện Adafruit.
+- Tài liệu Firebase Realtime Database.
+- Tài liệu về phát hiện té ngã và chăm sóc sức khỏe người cao tuổi.
 
 ---
 
-## 22. Thông tin tác giả
+## 22. License
 
-- Sinh viên thực hiện: `Nguyễn Lê Huy - 24110221`
-                       `Trần Hải Đạt - 24110197`
-                       `Ninh Nguyễn Minh Tuyên - 24110372`
-- Môn học: `Vạn vạn kết nối - IoT`
-- Giảng viên hướng dẫn: `Đinh Công Đoan`
-- Khoa: `Công nghệ thông tin`
-
----
-
-## 23. License
-
-Dự án được phát triển cho mục đích học tập và nghiên cứu. Người dùng có thể tham khảo, chỉnh sửa và mở rộng dự án với điều kiện ghi rõ nguồn nếu chia sẻ lại.
+Dự án được phát triển cho mục đích học tập và nghiên cứu. Người dùng có thể tham khảo, chỉnh sửa và mở rộng với điều kiện ghi rõ nguồn khi chia sẻ lại.
