@@ -214,13 +214,28 @@ const unsigned long MAX_RESET_COOLDOWN    = 10000; // tránh reset liên tục
 const unsigned long FINGER_STABILIZE_MS = 3000; // co tay can 2-3 giay de ap luc/anh sang on dinh
 const unsigned long LED_SETTLE_MS       = 1200; // bo qua mau sau khi doi LED lau hon vi co tay de bi troi DC
 
-const byte HR_SMOOTH_SIZE = 6;
+const byte HR_SMOOTH_SIZE = 9;
 int hrHistory[HR_SMOOTH_SIZE];
 byte hrHistoryCount = 0;
 byte hrHistoryIndex = 0;
 // Khong ep HR ve 70-100. Khoang nay de loc gia tri phi ly, van chap nhan HR cao/thap that neu song PPG du tot.
-const int HR_ALGO_MIN_BPM = 45;
+const int HR_ALGO_MIN_BPM = 40;
 const int HR_ALGO_MAX_BPM = 135;
+
+// Vung hien thi on dinh cho nguoi binh thuong luc nghi.
+// Code KHONG ep gia tri gia; no uu tien/giu on dinh trong vung nay khi tin hieu PPG du tot.
+// Neu BPM cao that va lap lai nhieu cua so voi chat luong cao, code van cho hien thi de canh bao.
+const int HR_STABLE_LOW_BPM   = 65;
+const int HR_STABLE_HIGH_BPM  = 90;
+const int HR_HIGH_CONFIRM_BPM = 100;
+const int HR_DANGER_BPM       = 120;
+const int HR_ALERT_HIGH_BPM   = 110;
+const int HR_ALERT_LOW_BPM    = 50;
+
+const int SPO2_STABLE_LOW     = 95;
+const int SPO2_STABLE_HIGH    = 100;
+const int SPO2_LOW_CONFIRM    = 94;
+
 const int HR_START_LOCK_COUNT = 1;
 int hrPendingValue = 0;
 byte hrPendingCount = 0;
@@ -236,6 +251,14 @@ int lastHRThreshold = 0;
 int lastHRPeakCount = 0;
 int lastHRValleyCount = 0;
 float lastHRAutoScore = 0;
+int lastHRSpectrum = 0;
+float lastHRSpectrumScore = 0;
+float lastHRSpectrumSeparation = 0;
+unsigned long lastLiveSpO2EstimateMs = 0;
+int lastLiveSpO2Estimate = 0;
+int lastLiveSpO2Quality = 0;
+int lastRawRatioX100 = 0;
+int lastAdjustedRatioX100 = 0;
 int lastHRQuality = 0;
 int lastHRRejectReason = 0;
 float lastWristMotionScore = 0;
@@ -245,13 +268,14 @@ uint32_t lastGoodIRValue = 0;
 uint32_t lastGoodREDValue = 0;
 
 // Chong reset buffer qua nhay khi do co tay.
-// 25 mau ~= 1 giay @25Hz, phu hop hon so voi 8 mau ~=0.32s.
-const uint8_t WRIST_BAD_SAMPLE_RESET_COUNT = 25;
+// 60 mau ~= 2.4 giay @25Hz, tranh reset buffer qua som khi day deo/co tay dao dong nhe.
+const uint8_t WRIST_BAD_SAMPLE_RESET_COUNT = 60;
 
-// Khi mat tiep xuc ngan/doi LED, giu ket qua cu de man hinh va Firebase khong nhay null ngay.
+// Khi mat tiep xuc ngan/doi LED, chi giu ket qua cu vai giay roi an khoi man hinh/web.
 unsigned long lastValidHeartRateMs = 0;
 unsigned long lastValidSpO2Ms = 0;
-const unsigned long KEEP_LAST_HEALTH_VALUE_MS = 15000;
+unsigned long lastFingerLostMs = 0;
+const unsigned long KEEP_LAST_HEALTH_VALUE_MS = 5000;
 
 const byte SPO2_SMOOTH_SIZE = 5;
 int spo2History[SPO2_SMOOTH_SIZE];
@@ -476,6 +500,10 @@ void updateStepTracker();
 void pushGraphData(uint32_t value);
 void pushHeartRateTrend(int bpm);
 int medianSmall(int *values, byte count);
+bool isHealthResultReady();
+bool isHeartRateAlertActive();
+String heartRateAlertLevel();
+void clearExpiredHealthDisplay();
 void addHRValue(int bpm);
 void addSpO2Value(int value);
 void sortU32Small(uint32_t *arr, int n);
@@ -485,6 +513,9 @@ void applyLedLevel();
 void autoTuneLed(uint32_t irValue, uint32_t redValue);
 int calculateBPMFromExtrema(int32_t *ac, int threshold, bool detectPeak);
 int calculateBPMByAutocorrelation(int32_t *ac);
+int calculateBPMBySpectrum(int32_t *ac);
+int estimateLiveSpO2FromPartialBuffer();
+void updateLiveSpO2Preview();
 int calculateHeartRateFromIRBuffer();
 void processCompletedHealthWindow();
 bool wakeMAX30102();
@@ -504,6 +535,7 @@ String firebaseEscape(String value);
 String buildFirebasePayload();
 bool sendTelemetryToFirebase();
 void markFirebaseHealthWindowReady();
+void markFirebaseHealthCleared();
 void forceFirebaseSendOnNextChange();
 void updateFirebaseIfNeeded();
 void drawBatteryIcon(int x, int y, int percent);
@@ -631,4 +663,3 @@ void loop() {
 
   delay(10);
 }
-

@@ -34,6 +34,7 @@ export function renderOverviewTab(state) {
   const fall = isTrue(d.fall);
   const sos = isTrue(d.sos);
   const finger = isTrue(d.finger);
+  const heartAlert = isTrue(d.heartAlert) || (bpm !== null && (bpm > 110 || bpm < 50));
 
   const daily = state.dailySummary || {};
   const steps = numberOrNull(d.steps ?? daily.steps);
@@ -47,7 +48,7 @@ export function renderOverviewTab(state) {
     : 0;
 
   const historyRows = Array.isArray(state.historyRows) ? state.historyRows : [];
-  const safetyOk = hasLatest && !fall && !sos;
+  const safetyOk = hasLatest && !fall && !sos && !heartAlert;
 
   page.className = "page-content overview-page";
 
@@ -230,6 +231,14 @@ export function renderOverviewTab(state) {
             title: "SOS",
             desc: sos ? "Đang kích hoạt" : "Không kích hoạt",
             ok: hasLatest && !sos,
+            waiting: !hasLatest
+          })}
+
+          ${renderAlertRow({
+            icon: icons.heart,
+            title: "Nhịp tim",
+            desc: heartAlert ? (bpm > 110 ? "Cao hơn 110 bpm" : "Thấp hơn 50 bpm") : "Trong ngưỡng",
+            ok: hasLatest && !heartAlert,
             waiting: !hasLatest
           })}
 

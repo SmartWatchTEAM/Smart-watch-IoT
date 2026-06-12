@@ -1,6 +1,11 @@
 export function renderAlertsTab(state) {
   const d = state.latestData || {};
   const page = document.getElementById("pageContent");
+  const bpm = Number.isFinite(Number(d.bpm ?? d.heartRate)) ? Number(d.bpm ?? d.heartRate) : null;
+  const heartAlert = Boolean(d.heartAlert) || (bpm !== null && (bpm > 110 || bpm < 50));
+  const heartAlertText = d.heartAlertText || (bpm !== null
+    ? (bpm > 110 ? "Heart rate too high" : bpm < 50 ? "Heart rate too low" : "Normal")
+    : "Waiting");
 
   page.className = "page-content alerts-page";
 
@@ -25,6 +30,17 @@ export function renderAlertsTab(state) {
         </div>
         <div class="pill ${d.sos ? "pill-alert" : "pill-ok"}">
           ${d.sos ? "SOS active" : "Normal"}
+        </div>
+      </div>
+
+      <div class="card span-6">
+        <h2 class="section-title">Heart Rate Alert</h2>
+        <p class="section-desc">Theo doi canh bao nhip tim cao hon 110 bpm hoac thap hon 50 bpm.</p>
+        <div class="value-row">
+          <span class="value ${heartAlert ? "red-text" : "orange-text"}">${bpm ?? "--"}</span>
+        </div>
+        <div class="pill ${heartAlert ? "pill-alert" : "pill-ok"}">
+          ${heartAlert ? heartAlertText : "Normal"}
         </div>
       </div>
 

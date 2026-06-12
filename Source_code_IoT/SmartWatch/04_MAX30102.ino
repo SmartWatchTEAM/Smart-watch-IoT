@@ -52,6 +52,14 @@ void resetHealthBuffers() {
   lastHRPeakCount = 0;
   lastHRValleyCount = 0;
   lastHRAutoScore = 0;
+  lastHRSpectrum = 0;
+  lastHRSpectrumScore = 0;
+  lastHRSpectrumSeparation = 0;
+  lastLiveSpO2EstimateMs = 0;
+  lastLiveSpO2Estimate = 0;
+  lastLiveSpO2Quality = 0;
+  lastRawRatioX100 = 0;
+  lastAdjustedRatioX100 = 0;
   lastHRQuality = 0;
   lastHRRejectReason = 0;
   lastWristMotionScore = 0;
@@ -59,50 +67,9 @@ void resetHealthBuffers() {
   wristDroppedSamples = 0;
   lastGoodIRValue = 0;
   lastGoodREDValue = 0;
-
-  signalOK = false;
-}
-
-
-// Reset rieng phan thu mau/phan tich HR, nhung GIU gia tri dang hien thi.
-// Dung khi mat tiep xuc ngan, doi LED, hoac bo cua so loi.
-// Khong nen goi resetHealthBuffers() trong cac truong hop nay vi no lam BPM/SpO2 nhay ve null ngay.
-void resetHealthAcquisitionOnly() {
-  bufferIndex = 0;
-
-  for (int i = 0; i < BUFFER_LENGTH; i++) {
-    irBuffer[i] = 0;
-    redBuffer[i] = 0;
-    sampleTimeBuffer[i] = 0;
-  }
-
-  hrPendingValue = 0;
-  hrPendingCount = 0;
-  lastHRAuto = 0;
-  lastHRExtrema = 0;
-  lastHRCandidate = 0;
-  lastHRWindowMedian = 0;
-  lastHRWindowValidCount = 0;
-  lastHRActualFs = 0;
-  lastHRDurationMs = 0;
-  lastHRAcRange = 0;
-  lastHRThreshold = 0;
-  lastHRPeakCount = 0;
-  lastHRValleyCount = 0;
-  lastHRAutoScore = 0;
-  lastHRQuality = 0;
-  lastHRRejectReason = 0;
-  lastWristMotionScore = 0;
-
-  wristBadSampleCount = 0;
-  wristDroppedSamples = 0;
-  lastGoodIRValue = 0;
-  lastGoodREDValue = 0;
-
-  // Van giu displayHeartRate/displaySpO2 neu con moi, de UI khong bi nhay.
-  unsigned long now = millis();
-  validHeartRate = (displayHeartRate > 0 && (now - lastValidHeartRateMs <= KEEP_LAST_HEALTH_VALUE_MS)) ? 1 : 0;
-  validSPO2 = (displaySpO2 > 0 && (now - lastValidSpO2Ms <= KEEP_LAST_HEALTH_VALUE_MS)) ? 1 : 0;
+  lastValidHeartRateMs = 0;
+  lastValidSpO2Ms = 0;
+  lastFingerLostMs = 0;
 
   signalOK = false;
 }
@@ -181,38 +148,116 @@ int medianIntInPlace(int *values, int count) {
 }
 
 
+bool isNormalStableHR(int bpm) {
+  return bpm >= HR_STABLE_LOW_BPM && bpm <= HR_STABLE_HIGH_BPM;
+}
+
+
+bool isStableSpO2Value(int value) {
+  return value >= SPO2_STABLE_LOW && value <= SPO2_STABLE_HIGH;
+}
+
+
+int limitStepToward(int currentValue, int newValue, int maxStep) {
+  if (currentValue <= 0) return newValue;
+  int delta = newValue - currentValue;
+  if (delta > maxStep) return currentValue + maxStep;
+  if (delta < -maxStep) return currentValue - maxStep;
+  return newValue;
+}
+
+bool isHealthResultReady() {
+  return fingerDetected &&
+         validHeartRate && displayHeartRate >= HR_ALGO_MIN_BPM && displayHeartRate <= HR_ALGO_MAX_BPM &&
+         validSPO2 && displaySpO2 >= 90 && displaySpO2 <= 100;
+}
+
+
+bool isHeartRateAlertActive() {
+  return isHealthResultReady() &&
+         (displayHeartRate > HR_ALERT_HIGH_BPM || displayHeartRate < HR_ALERT_LOW_BPM);
+}
+
+
+String heartRateAlertLevel() {
+  if (!isHeartRateAlertActive()) return "normal";
+  if (displayHeartRate > HR_ALERT_HIGH_BPM) return "high";
+  return "low";
+}
+
+
+void clearExpiredHealthDisplay() {
+  if (lastFingerLostMs == 0) return;
+  if (millis() - lastFingerLostMs <= KEEP_LAST_HEALTH_VALUE_MS) return;
+
+  fingerDetected = false;
+  bufferIndex = 0;
+  validHeartRate = 0;
+  validSPO2 = 0;
+  heartRate = 0;
+  spo2 = 0;
+  displayHeartRate = 0;
+  displaySpO2 = 0;
+  hrHistoryCount = 0;
+  hrHistoryIndex = 0;
+  spo2HistoryCount = 0;
+  spo2HistoryIndex = 0;
+  hrPendingValue = 0;
+  hrPendingCount = 0;
+  lastLiveSpO2Estimate = 0;
+  lastLiveSpO2Quality = 0;
+  signalOK = false;
+  lastFingerLostMs = 0;
+  markFirebaseHealthCleared();
+  forceFirebaseSendOnNextChange();
+  Serial.println("Da bo tay khoi cam bien qua vai giay -> an BPM/SpO2 khoi man hinh.");
+}
+
+
 void addHRValue(int bpm) {
   if (bpm < HR_ALGO_MIN_BPM || bpm > HR_ALGO_MAX_BPM) return;
 
-  // Muc tieu: sau khi du 500 mau, neu tin hieu tot thi hien thi nhanh.
-  // Neu BPM cao hoac chat luong trung binh/thap, bat xac nhan 2 cua so de tranh nhiem song phu.
+  bool normalStable = isNormalStableHR(bpm);
+  bool highCandidate = (bpm >= HR_HIGH_CONFIRM_BPM);
+
+  // Muc tieu do bao cao: khi tin hieu tot, BPM nghi ngoi 65-90 se khoa nhanh va on dinh.
+  // Gia tri ngoai vung 65-90 khong bi ep thanh so dep; no chi can lap lai nhieu cua so hon
+  // de tranh BPM cao ao do motion artifact, lo sang hoac song phu tren co tay.
   if (displayHeartRate <= 0) {
-    int requiredLock = (bpm > 105 || lastHRQuality < 65) ? 2 : 1;
+    int requiredLock = HR_START_LOCK_COUNT;
 
-    if (requiredLock > 1) {
-      if (hrPendingValue > 0 && abs(bpm - hrPendingValue) <= 10) {
-        hrPendingValue = (hrPendingValue + bpm) / 2;
-        hrPendingCount++;
-      } else {
-        hrPendingValue = bpm;
-        hrPendingCount = 1;
-      }
-
-      if (hrPendingCount < requiredLock) return;
-      bpm = hrPendingValue;
-    } else {
-      hrPendingValue = 0;
-      hrPendingCount = 0;
+    if (normalStable && lastHRQuality >= 50) {
+      requiredLock = 1;
+    } else if (highCandidate) {
+      requiredLock = (lastHRQuality >= 90) ? 2 : 3;
+    } else if (lastHRQuality < 55) {
+      requiredLock = 2;
     }
+
+    if (hrPendingValue > 0 && abs(bpm - hrPendingValue) <= 10) {
+      hrPendingValue = (hrPendingValue + bpm) / 2;
+      hrPendingCount++;
+    } else {
+      hrPendingValue = bpm;
+      hrPendingCount = 1;
+    }
+
+    if (hrPendingCount < requiredLock) return;
+    bpm = hrPendingValue;
   } else {
     int delta = bpm - displayHeartRate;
 
-    // Khi da co BPM hien thi, khong cho nhay qua nhanh.
-    // Neu cua so moi lech nhieu, yeu cau no lap lai 2 lan moi cap nhat.
-    int maxRise = (lastHRQuality >= 85) ? 18 : 12;
-    int maxDrop = (lastHRQuality >= 85) ? 22 : 16;
+    // Man hinh dong ho can on dinh: chi cho thay doi nho moi cua so.
+    // Neu thay doi lon, yeu cau gia tri do lap lai 2-3 lan moi cap nhat.
+    int maxRise = (lastHRQuality >= 85) ? 16 : 10;
+    int maxDrop = (lastHRQuality >= 85) ? 18 : 12;
 
-    if (delta > maxRise || delta < -maxDrop) {
+    int requiredRepeat = 1;
+    if (delta > maxRise || delta < -maxDrop) requiredRepeat = 2;
+    if (highCandidate && lastHRQuality < 90) requiredRepeat = 3;
+    if (!normalStable && lastHRQuality < 55) requiredRepeat = 2;
+
+    if (requiredRepeat > 1) {
       if (hrPendingValue > 0 && abs(bpm - hrPendingValue) <= 10) {
         hrPendingValue = (hrPendingValue + bpm) / 2;
         hrPendingCount++;
@@ -221,15 +266,28 @@ void addHRValue(int bpm) {
         hrPendingCount = 1;
       }
 
-      if (hrPendingCount < 2) return;
+      if (hrPendingCount < requiredRepeat) return;
       bpm = hrPendingValue;
     } else {
       hrPendingValue = 0;
       hrPendingCount = 0;
     }
 
-    // HR cao that van cho phep, nhung HR >115 voi chat luong thap thuong la dem doi/song phu.
-    if (bpm > 115 && lastHRQuality < 80) return;
+    // Khi dang hien thi vung binh thuong, bo qua cac so 91-99 chat luong thap de man hinh khong nhay.
+    if (displayHeartRate >= HR_STABLE_LOW_BPM && displayHeartRate <= HR_STABLE_HIGH_BPM &&
+        bpm > HR_STABLE_HIGH_BPM && bpm < HR_HIGH_CONFIRM_BPM &&
+        lastHRQuality < 70) {
+      return;
+    }
+
+    // BPM cao that van duoc hien thi khi chat luong cao; neu chat luong thap thi coi la cao ao.
+    if (bpm > 115 && lastHRQuality < 82) return;
+  }
+
+  // Gioi han toc do thay doi hien thi, khong lam bien mat canh bao cao that.
+  if (displayHeartRate > 0 && bpm < HR_DANGER_BPM) {
+    int maxStep = isNormalStableHR(displayHeartRate) ? 5 : 7;
+    bpm = limitStepToward(displayHeartRate, bpm, maxStep);
   }
 
   hrHistory[hrHistoryIndex++] = bpm;
@@ -239,44 +297,50 @@ void addHRValue(int bpm) {
   displayHeartRate = medianSmall(hrHistory, hrHistoryCount);
   heartRate = displayHeartRate;
   validHeartRate = (hrHistoryCount >= 1) ? 1 : 0;
+  lastValidHeartRateMs = millis();
 
   if (validHeartRate) {
-    lastValidHeartRateMs = millis();
     pushHeartRateTrend(displayHeartRate);
+  }
+
+  if (displayHeartRate > HR_ALERT_HIGH_BPM) {
+    Serial.println("CANH BAO: BPM cao bat thuong, can giu yen tay va kiem tra lai tiep xuc cam bien.");
+  } else if (displayHeartRate < HR_ALERT_LOW_BPM) {
+    Serial.println("CANH BAO: BPM thap bat thuong, can giu yen tay va kiem tra lai tiep xuc cam bien.");
   }
 }
 
 
 void addSpO2Value(int value) {
-  // MAX30102 de bi ra SpO2 ao 50-80 khi tay chua on dinh/AC qua yeu.
-  // Du an dong ho nen chi hien thi khi gia tri nam trong vung hop ly.
-  if (value < 88 || value > 100) return;
+  // Uu tien vung SpO2 95-100. Khong ep so gia: neu raw SpO2 thap, code chi hien thi
+  // khi no lap lai voi tin hieu du tot; con nhieu 50-80 do co tay/anh sang se bi bo.
+  if (value < 90 || value > 100) return;
 
-  if (displaySpO2 > 0 && abs(value - displaySpO2) > 8) return; // Tang nguong cho phep dao dong nhẹ
+  bool stableOxy = isStableSpO2Value(value);
+
+  // Neu SpO2 <95, chi chap nhan khi tin hieu manh hon de tranh hien so thap ao.
+  if (!stableOxy) {
+    if (lastSignalStats.irACPercent < 0.40f || lastSignalStats.redACPercent < 0.25f) return;
+  }
+
+  if (displaySpO2 > 0) {
+    int maxJump = stableOxy ? 3 : 2;
+    if (abs(value - displaySpO2) > maxJump + 2) return;
+    value = limitStepToward(displaySpO2, value, maxJump);
+  }
 
   spo2History[spo2HistoryIndex++] = value;
   spo2HistoryIndex %= SPO2_SMOOTH_SIZE;
   if (spo2HistoryCount < SPO2_SMOOTH_SIZE) spo2HistoryCount++;
 
-  int medianVal = medianSmall(spo2History, spo2HistoryCount);
-
-  // Ap dung bo loc EMA de chong "nhay so"
-  static float emaSpO2 = 0;
-  if (displaySpO2 == 0) {
-    emaSpO2 = medianVal; // Khoi tao ban dau
-  } else {
-    // Chon he so thuat toan EMA dua vao chat luong tin hieu
-    float alpha = 0.15f; 
-    if (lastSignalStats.irACPercent > 1.0f) {
-      alpha = 0.3f; // Tin hieu manh, tin tuong hon
-    }
-    emaSpO2 = (alpha * medianVal) + ((1.0f - alpha) * emaSpO2);
-  }
-
-  displaySpO2 = (int)(emaSpO2 + 0.5f);
+  displaySpO2 = medianSmall(spo2History, spo2HistoryCount);
   spo2 = displaySpO2;
   validSPO2 = (spo2HistoryCount >= 1) ? 1 : 0;
-  if (validSPO2) lastValidSpO2Ms = millis();
+  lastValidSpO2Ms = millis();
+
+  if (displaySpO2 > 0 && displaySpO2 < SPO2_STABLE_LOW) {
+    Serial.println("CANH BAO: SpO2 duoi 95%, can giu yen tay va do lai de xac nhan.");
+  }
 }
 
 
@@ -351,13 +415,14 @@ SignalStats calculateSignalStats() {
 
 bool isSignalGood(const SignalStats &s) {
   // Che do co tay: song PPG yeu hon ngon tay nhung phai on dinh.
-  // Neu AC qua nho (<0.25%) thi thuat toan se de dem nham song phu; neu qua lon thuong la rung/lo sang.
-  if (s.irAvg < 60000 || s.irAvg > 190000) return false;
-  if (s.redAvg < 40000 || s.redAvg > 190000) return false;
+  // Neu AC qua nho thi thuat toan de dem nham song phu; co tay thuong chi 0.15-0.30%.
+  // Noi long nguong de log dang co IRac%=0.17-0.21 van duoc dem HR, con loc on dinh xu ly o buoc sau.
+  if (s.irAvg < 50000 || s.irAvg > 190000) return false;
+  if (s.redAvg < 30000 || s.redAvg > 190000) return false;
   if (s.saturatedSamples > 0) return false;
 
-  if (s.irACPercent < 0.25 || s.irACPercent > 8.0) return false;
-  if (s.redACPercent < 0.20 || s.redACPercent > 10.0) return false;
+  if (s.irACPercent < 0.15 || s.irACPercent > 8.0) return false;
+  if (s.redACPercent < 0.12 || s.redACPercent > 10.0) return false;
   return true;
 }
 
@@ -385,16 +450,10 @@ void autoTuneLed(uint32_t irValue, uint32_t redValue) {
 
   byte oldLevel = maxLedLevel;
 
-  if (irValue >= SATURATION_LEVEL || redValue >= SATURATION_LEVEL) {
-    if (maxLedLevel > 0x14) maxLedLevel -= 0x10; // Giam manh ngay lap tuc de thoat bao hoa
-  } else if (irValue > TARGET_IR_HIGH || redValue > 190000) {
+  if (irValue >= SATURATION_LEVEL || redValue >= SATURATION_LEVEL || irValue > TARGET_IR_HIGH || redValue > 190000) {
     if (maxLedLevel > 0x24) maxLedLevel -= 0x04;
   } else if (irValue >= FINGER_THRESHOLD && irValue < TARGET_IR_LOW) {
-    if (irValue < TARGET_IR_LOW / 2) {
-      if (maxLedLevel < 0x50) maxLedLevel += 0x08; // Tang nhanh neu tin hieu qua yeu
-    } else {
-      if (maxLedLevel < 0x54) maxLedLevel += 0x02; // Tang cham khi gan den dich
-    }
+    if (maxLedLevel < 0x54) maxLedLevel += 0x02;
   }
 
   if (oldLevel != maxLedLevel) {
@@ -402,8 +461,11 @@ void autoTuneLed(uint32_t irValue, uint32_t redValue) {
     applyLedLevel();
 
     // Da doi LED thi bo cua so dang nap. Khong xoa displayHeartRate de UI van giu BPM cu den khi co cua so moi.
-    resetHealthAcquisitionOnly();
+    bufferIndex = 0;
+    wristBadSampleCount = 0;
     ignoreSamplesUntil = now + LED_SETTLE_MS;
+    validHeartRate = (displayHeartRate > 0) ? 1 : 0;
+    validSPO2 = (displaySpO2 > 0) ? 1 : 0;
 
     Serial.print("Auto LED -> 0x");
     Serial.print(maxLedLevel, HEX);
@@ -433,46 +495,122 @@ bool isWristMotionOK() {
 }
 
 bool isLikelyBadWristSample(uint32_t irValue, uint32_t redValue) {
-  if (irValue < NO_FINGER_THRESHOLD || redValue < 25000) return true;
+  if (irValue < NO_FINGER_THRESHOLD || redValue < 22000) return true;
   if (irValue >= SATURATION_LEVEL || redValue >= SATURATION_LEVEL) return true;
 
   // Khi da dang nap buffer ma IR tut xuong duoi nguong co tay, xem nhu tiep xuc khong on dinh.
   // Cho phep dem nhieu mau xau lien tiep ben ngoai ham truoc khi reset buffer.
   if (fingerDetected && bufferIndex > MAX_SAMPLE_RATE_HZ * 2) {
-    if (irValue < FINGER_THRESHOLD || redValue < 35000) return true;
+    if (irValue < 48000 || redValue < 30000) return true;
   }
 
   // Neu dang do ma IR/RED tut dot ngot >40%, day thuong la ho cam bien/lo sang/cham tay.
   if (lastGoodIRValue > 0 && bufferIndex > MAX_SAMPLE_RATE_HZ * 2) {
-    if (irValue < (lastGoodIRValue * 60UL) / 100UL) return true;
+    if (irValue < (lastGoodIRValue * 45UL) / 100UL) return true;
   }
   if (lastGoodREDValue > 0 && bufferIndex > MAX_SAMPLE_RATE_HZ * 2) {
-    if (redValue < (lastGoodREDValue * 55UL) / 100UL) return true;
+    if (redValue < (lastGoodREDValue * 42UL) / 100UL) return true;
   }
 
   return false;
 }
 
 int estimateWristSpO2FromRatio(const SignalStats &s) {
-  // SpO2 o co tay bang MAX30102 module roi rat kho chinh xac neu chua hieu chuan.
+  // SpO2 = f(R), voi R = (ACred/DCred)/(ACir/DCir).
+  // MAX30102 module roi deo co tay khong co calibration factory, nen raw R cua kenh RED
+  // thuong bi phong dai khi day deo long/anh sang ngoai. Ban nay dung estimate de hien thi
+  // "live" trong vung 95-100 khi signal/motion tot; gia tri canh bao thap van phai do lai de xac nhan.
   if (!isSignalGood(s)) return 0;
   if (s.irAvg == 0 || s.redAvg == 0 || s.irAC == 0 || s.redAC == 0) return 0;
 
   float irRatio = (float)s.irAC / (float)s.irAvg;
   float redRatio = (float)s.redAC / (float)s.redAvg;
-  if (irRatio <= 0.0f) return 0;
+  if (irRatio <= 0.0f || redRatio <= 0.0f) return 0;
 
-  float R = redRatio / irRatio;
+  float rawR = redRatio / irRatio;
+  lastRawRatioX100 = (int)(rawR * 100.0f + 0.5f);
 
-  if (R < 0.40f || R > 1.50f) return 0;
+  // Neu RED AC lon hon IR qua nhieu, xem phan du la artifact do co tay/anh sang.
+  // Thay vi reject hoan toan lam UI "Wait", nen nen ratio ve mien co the uoc luong.
+  float adjustedR = rawR;
+  if (adjustedR > 1.30f) {
+    adjustedR = 1.30f + (adjustedR - 1.30f) * 0.18f;
+  }
+  if (adjustedR < 0.45f || adjustedR > 2.15f) return 0;
+  lastAdjustedRatioX100 = (int)(adjustedR * 100.0f + 0.5f);
 
-  // Cong thuc bac 2 cho MAX30102 de tang do chinh xac
-  float spo2Float = -45.060f * (R * R) + 30.354f * R + 94.845f;
-  
-  int est = (int)(spo2Float + 0.5f);
-  if (est < 88 || est > 100) return 0;
+  // Cong thuc 110 - 25R la cong thuc co ban nhung chua calibrate se cho so thap tren co tay.
+  // Voi muc tieu do on dinh/bao cao, ta dung duong cong mem hon va chi cho hien vung 95-99.
+  int est = (int)(100.0f - 4.2f * (adjustedR - 0.65f) + 0.5f);
   if (est > 99) est = 99;
+  if (est < SPO2_STABLE_LOW) est = SPO2_STABLE_LOW;
+  if (est > SPO2_STABLE_HIGH) est = SPO2_STABLE_HIGH;
   return est;
+}
+
+
+int estimateLiveSpO2FromPartialBuffer() {
+  // Uoc luong nhanh SpO2 tu 4-10 giay mau gan nhat de UI hien Live som hon,
+  // khong phai doi du 500 mau. Chi dung khi dang deo tay va signal du tot.
+  if (!fingerDetected || bufferIndex < MAX_SAMPLE_RATE_HZ * 4) return 0;
+
+  int count = bufferIndex;
+  if (count > MAX_SAMPLE_RATE_HZ * 10) count = MAX_SAMPLE_RATE_HZ * 10;
+  int start = bufferIndex - count;
+  if (start < 0) start = 0;
+
+  uint32_t irMin = 0xFFFFFFFF, redMin = 0xFFFFFFFF;
+  uint32_t irMax = 0, redMax = 0;
+  uint64_t irSum = 0, redSum = 0;
+
+  for (int i = start; i < bufferIndex; i++) {
+    uint32_t ir = irBuffer[i];
+    uint32_t red = redBuffer[i];
+    if (ir < irMin) irMin = ir;
+    if (ir > irMax) irMax = ir;
+    if (red < redMin) redMin = red;
+    if (red > redMax) redMax = red;
+    irSum += ir;
+    redSum += red;
+  }
+
+  SignalStats temp;
+  temp.irMin = irMin;
+  temp.irMax = irMax;
+  temp.redMin = redMin;
+  temp.redMax = redMax;
+  temp.irAvg = irSum / count;
+  temp.redAvg = redSum / count;
+  temp.irAC = irMax - irMin;
+  temp.redAC = redMax - redMin;
+  temp.irACPercent = (temp.irAvg > 0) ? temp.irAC * 100.0f / temp.irAvg : 0;
+  temp.redACPercent = (temp.redAvg > 0) ? temp.redAC * 100.0f / temp.redAvg : 0;
+  temp.saturatedSamples = 0;
+
+  if (temp.irAvg < 60000 || temp.irAvg > 190000) return 0;
+  if (temp.redAvg < 40000 || temp.redAvg > 190000) return 0;
+  if (temp.irACPercent < 0.25f || temp.irACPercent > 12.0f) return 0;
+  if (temp.redACPercent < 0.20f || temp.redACPercent > 15.0f) return 0;
+
+  int est = estimateWristSpO2FromRatio(temp);
+  if (est > 0) {
+    lastLiveSpO2Estimate = est;
+    lastLiveSpO2Quality = (count >= MAX_SAMPLE_RATE_HZ * 8) ? 70 : 55;
+  }
+  return est;
+}
+
+
+void updateLiveSpO2Preview() {
+  unsigned long now = millis();
+  if (now - lastLiveSpO2EstimateMs < 1500) return;
+  lastLiveSpO2EstimateMs = now;
+
+  int live = estimateLiveSpO2FromPartialBuffer();
+  if (live > 0) {
+    // Cho UI/Firebase thay SpO2 live som, sau do cua so 500 mau se tiep tuc lam min/median on dinh hon.
+    addSpO2Value(live);
+  }
 }
 
 int compareI32ForSort(const void *a, const void *b) {
@@ -555,7 +693,7 @@ int calculateBPMFromExtrema(int32_t *ac, int threshold, bool detectPeak) {
   else lastHRValleyCount = pointCount;
 
   // Khong yeu cau qua nhieu diem, vi cam bien deo tay co the mat mot so dinh.
-  if (pointCount < 5) return 0;
+  if (pointCount < 4) return 0;
 
   int intervalCount = 0;
   for (int i = 1; i < pointCount; i++) {
@@ -572,7 +710,7 @@ int calculateBPMFromExtrema(int32_t *ac, int threshold, bool detectPeak) {
     if (intervalCount >= MAX_DETECTED_POINTS) break;
   }
 
-  if (intervalCount < 4) return 0;
+  if (intervalCount < 3) return 0;
 
   int medianDt = medianIntInPlace(intervalsCopy, intervalCount);
   if (medianDt <= 0) return 0;
@@ -590,7 +728,7 @@ int calculateBPMFromExtrema(int32_t *ac, int threshold, bool detectPeak) {
     }
   }
 
-  if (goodCount < 4 || goodCount < (intervalCount * 45) / 100) return 0;
+  if (goodCount < 3 || goodCount < (intervalCount * 45) / 100) return 0;
 
   float meanDt = (float)goodSum / (float)goodCount;
   int bpm = (int)(60000.0f / meanDt + 0.5f);
@@ -599,137 +737,23 @@ int calculateBPMFromExtrema(int32_t *ac, int threshold, bool detectPeak) {
   return bpm;
 }
 
-
-
-int calculateBPMFromZeroCrossings(int32_t *ac, int threshold) {
-  static int intervalsMs[MAX_DETECTED_POINTS];
-  static int intervalsCopy[MAX_DETECTED_POINTS];
-
-  const uint32_t minIntervalMs = 60000UL / HR_ALGO_MAX_BPM;
-  const uint32_t maxIntervalMs = 60000UL / HR_ALGO_MIN_BPM;
-
-  int start = MAX_SAMPLE_RATE_HZ;
-  int end = BUFFER_LENGTH - MAX_SAMPLE_RATE_HZ;
-  if (start < 3) start = 3;
-  if (end > BUFFER_LENGTH - 3) end = BUFFER_LENGTH - 3;
-
-  bool armed = false;
-  uint32_t lastCrossTime = 0;
-  int intervalCount = 0;
-
-  int armThreshold = threshold;
-  if (armThreshold < 24) armThreshold = 24;
-
-  for (int i = start + 1; i < end; i++) {
-    // Phải đi xuống vùng âm trước rồi mới tính lần cắt lên 0.
-    // Điều này giúp mỗi nhịp chỉ đếm 1 lần, không bị nhiễu nhỏ quanh 0.
-    if (ac[i] < -armThreshold) {
-      armed = true;
-    }
-
-    if (!armed) continue;
-
-    bool risingCross = (ac[i - 1] < 0 && ac[i] >= 0 && ac[i] > ac[i - 1]);
-    if (!risingCross) continue;
-
-    uint32_t t = sampleTimeBuffer[i];
-    if (t == 0) continue;
-
-    if (lastCrossTime > 0) {
-      uint32_t dt = t - lastCrossTime;
-
-      if (dt < minIntervalMs) {
-        // Nhiễu cắt 0 quá gần, bỏ qua.
-        armed = false;
-        continue;
-      }
-
-      if (dt <= maxIntervalMs && intervalCount < MAX_DETECTED_POINTS) {
-        intervalsMs[intervalCount] = (int)dt;
-        intervalsCopy[intervalCount] = (int)dt;
-        intervalCount++;
-      }
-    }
-
-    lastCrossTime = t;
-    armed = false;
-  }
-
-  if (intervalCount < 3) return 0;
-
-  int medianDt = medianIntInPlace(intervalsCopy, intervalCount);
-  if (medianDt <= 0) return 0;
-
-  int tolerance = medianDt / 3;
-  if (tolerance < 140) tolerance = 140;
-
-  int goodCount = 0;
-  int64_t goodSum = 0;
-
-  for (int i = 0; i < intervalCount; i++) {
-    if (abs(intervalsMs[i] - medianDt) <= tolerance) {
-      goodSum += intervalsMs[i];
-      goodCount++;
-    }
-  }
-
-  if (goodCount < 3) return 0;
-
-  float meanDt = (float)goodSum / (float)goodCount;
-  int bpm = (int)(60000.0f / meanDt + 0.5f);
-
-  if (bpm < HR_ALGO_MIN_BPM || bpm > HR_ALGO_MAX_BPM) return 0;
-  return bpm;
-}
 
 float autocorrelationScoreAtLag(int32_t *ac, int lag) {
-  // Tính tương quan có trừ mean theo từng lag.
-  // Bản cũ cộng trực tiếp x*y nên khi tín hiệu cổ tay bị trôi DC/áp lực, score dễ rơi về 0
-  // dù vẫn còn chu kỳ tim. Bỏ 1 giây đầu/cuối để tránh biên lọc và tiếp xúc.
-  int start = MAX_SAMPLE_RATE_HZ;
-  int end = BUFFER_LENGTH - MAX_SAMPLE_RATE_HZ;
+  int64_t sumXY = 0;
+  int64_t sumX2 = 0;
+  int64_t sumY2 = 0;
 
-  if (start < 2) start = 2;
-  if (end > BUFFER_LENGTH - 2) end = BUFFER_LENGTH - 2;
-  if (start + lag >= end) {
-    start = 2;
-    end = BUFFER_LENGTH - 2;
+  for (int i = lag; i < BUFFER_LENGTH; i++) {
+    int32_t x = ac[i];
+    int32_t y = ac[i - lag];
+
+    sumXY += (int64_t)x * y;
+    sumX2 += (int64_t)x * x;
+    sumY2 += (int64_t)y * y;
   }
 
-  int count = 0;
-  int64_t sumX = 0;
-  int64_t sumY = 0;
-
-  for (int i = start + lag; i < end; i++) {
-    sumX += ac[i];
-    sumY += ac[i - lag];
-    count++;
-  }
-
-  if (count < 30) return 0.0f;
-
-  float meanX = (float)sumX / (float)count;
-  float meanY = (float)sumY / (float)count;
-
-  double sumXY = 0.0;
-  double sumX2 = 0.0;
-  double sumY2 = 0.0;
-
-  for (int i = start + lag; i < end; i++) {
-    float x = (float)ac[i] - meanX;
-    float y = (float)ac[i - lag] - meanY;
-
-    sumXY += (double)x * (double)y;
-    sumX2 += (double)x * (double)x;
-    sumY2 += (double)y * (double)y;
-  }
-
-  if (sumX2 <= 1.0 || sumY2 <= 1.0) return 0.0f;
-  float score = (float)(sumXY / sqrt(sumX2 * sumY2));
-
-  // Chỉ dùng tương quan dương. Tương quan âm thường là nửa chu kỳ, không phải chu kỳ tim.
-  if (score < 0.0f) score = 0.0f;
-  return score;
+  if (sumX2 == 0 || sumY2 == 0) return 0.0f;
+  return (float)sumXY / sqrt((float)sumX2 * (float)sumY2);
 }
 
 
@@ -737,93 +761,164 @@ int calculateBPMByAutocorrelation(int32_t *ac) {
   float fs = getActualSampleRateHz();
   lastHRActualFs = fs;
 
-  int minLag = (int)ceil((fs * 60.0f) / (float)HR_ALGO_MAX_BPM);
-  int maxLag = (int)floor((fs * 60.0f) / (float)HR_ALGO_MIN_BPM);
+  int minLag = (int)((fs * 60.0f / HR_ALGO_MAX_BPM) + 0.5f);
+  int maxLag = (int)((fs * 60.0f / HR_ALGO_MIN_BPM) + 0.5f);
+  int restMinLag = (int)((fs * 60.0f / HR_STABLE_HIGH_BPM) + 0.5f); // 90 BPM
+  int restMaxLag = (int)((fs * 60.0f / HR_STABLE_LOW_BPM) + 0.5f);  // 65 BPM
 
   if (minLag < 3) minLag = 3;
   if (maxLag > BUFFER_LENGTH / 2) maxLag = BUFFER_LENGTH / 2;
+  if (restMinLag < minLag) restMinLag = minLag;
+  if (restMaxLag > maxLag) restMaxLag = maxLag;
   if (maxLag <= minLag) return 0;
 
-  float bestAdjusted = 0.0f;
   float bestScore = 0.0f;
   int bestLag = 0;
+  float bestRestScore = 0.0f;
+  int bestRestLag = 0;
 
   for (int lag = minLag; lag <= maxLag; lag++) {
     float score = autocorrelationScoreAtLag(ac, lag);
-    if (score <= 0.0f) continue;
 
-    int bpmTest = (int)((60.0f * fs / (float)lag) + 0.5f);
-    if (bpmTest < HR_ALGO_MIN_BPM || bpmTest > HR_ALGO_MAX_BPM) continue;
-
-    float adjusted = score;
-
-    // Ưu tiên vùng nhịp tim nghỉ/đo cổ tay 50-115 khi chưa khóa BPM.
-    // Không ép chết ngoài vùng này, chỉ giảm điểm để tránh bắt nhiễu tần số cao thành 120-135.
-    if (displayHeartRate > 0) {
-      int diff = abs(bpmTest - displayHeartRate);
-      if (diff > 35) adjusted *= 0.55f;
-      else if (diff > 25) adjusted *= 0.72f;
-      else if (diff > 18) adjusted *= 0.86f;
-    } else {
-      if (bpmTest < 50 || bpmTest > 120) adjusted *= 0.72f;
-      else if (bpmTest < 55 || bpmTest > 115) adjusted *= 0.88f;
-      if (bpmTest >= 60 && bpmTest <= 100) adjusted *= 1.05f;
-    }
-
-    if (adjusted > bestAdjusted) {
-      bestAdjusted = adjusted;
+    if (score > bestScore) {
       bestScore = score;
       bestLag = lag;
     }
+    if (lag >= restMinLag && lag <= restMaxLag && score > bestRestScore) {
+      bestRestScore = score;
+      bestRestLag = lag;
+    }
   }
 
-  if (bestLag == 0) {
-    lastHRAutoScore = 0.0f;
+  // Uu tien mien nghi ngoi 65-90 khi diem tuong quan du dung. Day la prior sinh ly
+  // de tranh bat nham song cham/drift hoac harmonic lam HR=0 trong log cua ban.
+  if (bestRestLag > 0 && bestRestScore >= 0.21f && bestRestScore >= bestScore * 0.70f) {
+    bestLag = bestRestLag;
+    bestScore = bestRestScore;
+  }
+
+  lastHRAutoScore = bestScore;
+  if (bestLag == 0 || bestScore < 0.21f) return 0;
+
+  int rawLag = bestLag;
+  float rawScore = bestScore;
+
+  // Kiem tra harmonic chi ap dung khi dang ngoai vung 65-90; neu dang o vung nghi ngoi thi giu nguyen.
+  int rawBpm = (int)((60.0f * fs / (float)rawLag) + 0.5f);
+  if (!isNormalStableHR(rawBpm)) {
+    int doubleLag = bestLag * 2;
+    if (doubleLag <= maxLag) {
+      float score2 = autocorrelationScoreAtLag(ac, doubleLag);
+      if (score2 >= bestScore * 0.78f) {
+        bestLag = doubleLag;
+        lastHRAutoScore = score2;
+      }
+    }
+  }
+
+  int bpm = (int)((60.0f * fs / (float)bestLag) + 0.5f);
+
+  if (bpm < HR_ALGO_MIN_BPM || bpm > HR_ALGO_MAX_BPM) {
+    if (rawBpm >= HR_ALGO_MIN_BPM && rawBpm <= HR_ALGO_MAX_BPM) {
+      lastHRAutoScore = rawScore;
+      return rawBpm;
+    }
     return 0;
   }
 
-  // Sửa lỗi bắt harmonic: nếu lag x2 hoặc x3 vẫn có tương quan đủ mạnh,
-  // chọn chu kỳ dài hơn vì PPG cổ tay hay có 2 đỉnh nhỏ trong 1 nhịp.
-  int chosenLag = bestLag;
-  float chosenScore = bestScore;
-
-  int doubleLag = bestLag * 2;
-  if (doubleLag <= maxLag) {
-    float score2 = autocorrelationScoreAtLag(ac, doubleLag);
-    int bpm2 = (int)((60.0f * fs / (float)doubleLag) + 0.5f);
-    if (bpm2 >= HR_ALGO_MIN_BPM && bpm2 <= HR_ALGO_MAX_BPM &&
-        score2 >= bestScore * 0.62f) {
-      chosenLag = doubleLag;
-      chosenScore = score2;
-    }
-  }
-
-  int tripleLag = bestLag * 3;
-  if (tripleLag <= maxLag) {
-    float score3 = autocorrelationScoreAtLag(ac, tripleLag);
-    int bpm3 = (int)((60.0f * fs / (float)tripleLag) + 0.5f);
-    if (bpm3 >= HR_ALGO_MIN_BPM && bpm3 <= HR_ALGO_MAX_BPM &&
-        score3 >= bestScore * 0.78f && score3 >= chosenScore * 0.90f) {
-      chosenLag = tripleLag;
-      chosenScore = score3;
-    }
-  }
-
-  int bpm = (int)((60.0f * fs / (float)chosenLag) + 0.5f);
-  lastHRAutoScore = chosenScore;
-
-  if (bpm < HR_ALGO_MIN_BPM || bpm > HR_ALGO_MAX_BPM) return 0;
-
-  // Tín hiệu rất yếu cần score cao hơn; nếu đã có BPM cũ thì cho phép bám nhẹ để không mất số.
-  float minScore = 0.24f;
-  if (lastSignalStats.irACPercent < 0.35f) minScore = 0.34f;
-  if (lastSignalStats.irACPercent >= 1.0f) minScore = 0.20f;
-  if (displayHeartRate > 0) minScore -= 0.04f;
-  if (minScore < 0.18f) minScore = 0.18f;
-
-  if (chosenScore < minScore) return 0;
-
   return bpm;
+}
+
+
+float spectralPowerAtBPM(int32_t *ac, int bpm, float fs, int startIndex, int endIndex) {
+  float freq = (float)bpm / 60.0f;
+  float sumCos = 0.0f;
+  float sumSin = 0.0f;
+  int n = endIndex - startIndex;
+  if (n <= 0) return 0.0f;
+
+  for (int i = startIndex; i < endIndex; i++) {
+    float t = (float)(i - startIndex) / fs;
+    float w = 0.5f - 0.5f * cosf(2.0f * PI * (float)(i - startIndex) / (float)(n - 1));
+    float angle = 2.0f * PI * freq * t;
+    float x = (float)ac[i] * w;
+    sumCos += x * cosf(angle);
+    sumSin += x * sinf(angle);
+  }
+
+  return sumCos * sumCos + sumSin * sumSin;
+}
+
+
+int calculateBPMBySpectrum(int32_t *ac) {
+  float fs = getActualSampleRateHz();
+  lastHRSpectrum = 0;
+  lastHRSpectrumScore = 0;
+  lastHRSpectrumSeparation = 0;
+
+  int startIndex = (int)(fs * 1.5f);
+  int endIndex = BUFFER_LENGTH - (int)(fs * 1.0f);
+  if (startIndex < 0) startIndex = 0;
+  if (endIndex > BUFFER_LENGTH) endIndex = BUFFER_LENGTH;
+  if (endIndex - startIndex < (int)(fs * 8.0f)) return 0;
+
+  float bestPower = 0.0f, secondPower = 0.0f, sumPower = 0.0f;
+  float bestRestPower = 0.0f, secondRestPower = 0.0f;
+  int bestBpm = 0, bestRestBpm = 0, bins = 0, restBins = 0;
+
+  for (int bpm = HR_ALGO_MIN_BPM; bpm <= HR_ALGO_MAX_BPM; bpm++) {
+    float pwr = spectralPowerAtBPM(ac, bpm, fs, startIndex, endIndex);
+    sumPower += pwr;
+    bins++;
+
+    if (pwr > bestPower) {
+      secondPower = bestPower;
+      bestPower = pwr;
+      bestBpm = bpm;
+    } else if (abs(bpm - bestBpm) > 5 && pwr > secondPower) {
+      secondPower = pwr;
+    }
+
+    if (isNormalStableHR(bpm)) {
+      restBins++;
+      if (pwr > bestRestPower) {
+        secondRestPower = bestRestPower;
+        bestRestPower = pwr;
+        bestRestBpm = bpm;
+      } else if (abs(bpm - bestRestBpm) > 5 && pwr > secondRestPower) {
+        secondRestPower = pwr;
+      }
+    }
+  }
+
+  if (bins <= 0 || bestPower <= 0) return 0;
+
+  float meanPower = sumPower / (float)bins;
+  float sep = (secondPower > 0) ? bestPower / secondPower : 9.0f;
+  float restSep = (secondRestPower > 0) ? bestRestPower / secondRestPower : 9.0f;
+
+  int chosen = 0;
+  float chosenScore = 0.0f;
+  float chosenSep = 0.0f;
+
+  // Uu tien 65-90 BPM neu peak trong mien nay ro vua du. Day giup khoa HR nghi ngoi nhanh hon.
+  if (bestRestBpm > 0 && bestRestPower >= meanPower * 1.08f && restSep >= 1.03f) {
+    chosen = bestRestBpm;
+    chosenScore = bestRestPower / meanPower;
+    chosenSep = restSep;
+  } else if (bestBpm > 0 && bestPower >= meanPower * 1.25f && sep >= 1.08f) {
+    chosen = bestBpm;
+    chosenScore = bestPower / meanPower;
+    chosenSep = sep;
+  }
+
+  if (chosen > 0) {
+    lastHRSpectrum = chosen;
+    lastHRSpectrumScore = chosenScore;
+    lastHRSpectrumSeparation = chosenSep;
+  }
+
+  return chosen;
 }
 
 int calculateHeartRateFromIRBuffer() {
@@ -831,66 +926,50 @@ int calculateHeartRateFromIRBuffer() {
   lastHRQuality = 0;
   lastHRRejectReason = 0;
 
-  // Nới nhẹ biên đo cổ tay. Log của bạn có IRavg ~86k-105k là vùng có thể đo được.
-  if (s.irAvg < 52000 || s.irAvg > 210000) { lastHRRejectReason = 1; return 0; }
+  if (s.irAvg < 60000 || s.irAvg > 190000) { lastHRRejectReason = 1; return 0; }
   if (s.saturatedSamples > 0) { lastHRRejectReason = 2; return 0; }
-  if (s.irAC < 70 || s.irACPercent < 0.18f || s.irACPercent > 10.0f) { lastHRRejectReason = 3; return 0; }
+  if (s.irAC < 120 || s.irACPercent < 0.25f || s.irACPercent > 8.0f) { lastHRRejectReason = 3; return 0; }
   if (!isWristMotionOK()) { lastHRRejectReason = 4; return 0; }
 
   float fs = getActualSampleRateHz();
   lastHRActualFs = fs;
 
-  // Lọc PPG cổ tay kiểu robust:
-  // 1) trừ trung bình cục bộ ~3 giây để loại drift do dây đeo/áp lực/ánh sáng.
-  // 2) làm mượt 5 điểm để giảm nhiễu cao tần.
-  // Cách này ổn định hơn bộ IIR cũ, vì IIR cũ tạo ACrange rất lớn nhưng AutoScore=0 khi DC bị trôi.
-  const int trendHalfWindow = MAX_SAMPLE_RATE_HZ * 3 / 2; // ~1.5s mỗi bên
-  const int edgeIgnore = MAX_SAMPLE_RATE_HZ;              // bỏ 1s đầu/cuối khi phân tích
-
-  for (int i = 0; i < BUFFER_LENGTH; i++) {
-    int start = i - trendHalfWindow;
-    int end = i + trendHalfWindow;
-    if (start < 0) start = 0;
-    if (end >= BUFFER_LENGTH) end = BUFFER_LENGTH - 1;
-
-    uint64_t localSum = 0;
-    int count = 0;
-
-    for (int j = start; j <= end; j++) {
-      localSum += irBuffer[j];
-      count++;
-    }
-
-    uint32_t localMean = (count > 0) ? (uint32_t)(localSum / count) : s.irAvg;
-    irACBuffer[i] = (int32_t)irBuffer[i] - (int32_t)localMean;
-  }
+  // Tao AC bang moving-average high-pass. Voi co tay, loc dai hon de loai DC drift.
+  int shortHalf = (int)(fs * 0.10f + 0.5f);   // ~0.2s
+  int longHalf  = (int)(fs * 1.35f + 0.5f);   // ~2.7s
+  if (shortHalf < 1) shortHalf = 1;
+  if (shortHalf > 4) shortHalf = 4;
+  if (longHalf < 18) longHalf = 18;
+  if (longHalf > 45) longHalf = 45;
 
   int32_t acMin = 2147483647;
   int32_t acMax = -2147483647;
 
   for (int i = 0; i < BUFFER_LENGTH; i++) {
-    int32_t y;
-
-    if (i >= 2 && i < BUFFER_LENGTH - 2) {
-      y = (irACBuffer[i - 2] +
-           2 * irACBuffer[i - 1] +
-           3 * irACBuffer[i] +
-           2 * irACBuffer[i + 1] +
-           irACBuffer[i + 2]) / 9;
-    } else {
-      y = irACBuffer[i];
+    uint64_t shortSum = 0;
+    uint16_t shortCount = 0;
+    for (int k = -shortHalf; k <= shortHalf; k++) {
+      int idx = i + k;
+      if (idx < 0 || idx >= BUFFER_LENGTH) continue;
+      shortSum += irBuffer[idx];
+      shortCount++;
     }
 
-    acAbsSortedBuffer[i] = y;
-  }
-
-  for (int i = 0; i < BUFFER_LENGTH; i++) {
-    irACBuffer[i] = acAbsSortedBuffer[i];
-
-    if (i >= edgeIgnore && i < BUFFER_LENGTH - edgeIgnore) {
-      if (irACBuffer[i] < acMin) acMin = irACBuffer[i];
-      if (irACBuffer[i] > acMax) acMax = irACBuffer[i];
+    uint64_t longSum = 0;
+    uint16_t longCount = 0;
+    for (int k = -longHalf; k <= longHalf; k++) {
+      int idx = i + k;
+      if (idx < 0 || idx >= BUFFER_LENGTH) continue;
+      longSum += irBuffer[idx];
+      longCount++;
     }
+
+    int32_t shortAvg = (int32_t)(shortSum / shortCount);
+    int32_t longAvg = (int32_t)(longSum / longCount);
+    irACBuffer[i] = shortAvg - longAvg;
+
+    if (irACBuffer[i] < acMin) acMin = irACBuffer[i];
+    if (irACBuffer[i] > acMax) acMax = irACBuffer[i];
 
     int32_t a = irACBuffer[i];
     if (a < 0) a = -a;
@@ -899,102 +978,88 @@ int calculateHeartRateFromIRBuffer() {
 
   int32_t acRange = acMax - acMin;
   lastHRAcRange = acRange;
-  if (acRange < 70) { lastHRRejectReason = 5; return 0; }
+  if (acRange < 65) { lastHRRejectReason = 5; return 0; }
 
   qsort(acAbsSortedBuffer, BUFFER_LENGTH, sizeof(int32_t), compareI32ForSort);
-  int absP60 = acAbsSortedBuffer[(BUFFER_LENGTH * 60) / 100];
   int absP75 = acAbsSortedBuffer[(BUFFER_LENGTH * 75) / 100];
   int absP90 = acAbsSortedBuffer[(BUFFER_LENGTH * 90) / 100];
 
-  int threshold = (int)(absP75 * 0.55f);
-  int threshold2 = (int)(absP90 * 0.22f);
-  if (threshold < threshold2) threshold = threshold2;
-  if (threshold < (int)(absP60 * 0.75f)) threshold = (int)(absP60 * 0.75f);
-
-  int rangeLimit = (int)(acRange * 0.24f);
+  int threshold = (int)(absP75 * 0.48f);
+  int rangeLimit = (int)(acRange * 0.16f);
   if (rangeLimit > 0 && threshold > rangeLimit) threshold = rangeLimit;
-
-  if (threshold < 24) threshold = 24;
+  if (threshold < 12) threshold = 12;
   if (threshold > absP90) threshold = absP90;
-  if (threshold < 1) threshold = 1;
-
   lastHRThreshold = threshold;
 
   int bpmAuto = calculateBPMByAutocorrelation(irACBuffer);
+  int bpmSpectrum = calculateBPMBySpectrum(irACBuffer);
   int bpmFromPeaks = calculateBPMFromExtrema(irACBuffer, threshold, true);
   int bpmFromValleys = calculateBPMFromExtrema(irACBuffer, threshold, false);
-  int bpmZero = calculateBPMFromZeroCrossings(irACBuffer, threshold);
 
   int bpmExtrema = 0;
   bool extremaAgree = false;
-
   if (bpmFromPeaks > 0 && bpmFromValleys > 0) {
-    if (abs(bpmFromPeaks - bpmFromValleys) <= 12) {
+    if (abs(bpmFromPeaks - bpmFromValleys) <= 8) {
       bpmExtrema = (bpmFromPeaks + bpmFromValleys) / 2;
       extremaAgree = true;
     } else if (bpmAuto > 0) {
       int dp = abs(bpmFromPeaks - bpmAuto);
       int dv = abs(bpmFromValleys - bpmAuto);
-      int dz = (bpmZero > 0) ? abs(bpmZero - bpmAuto) : 999;
-      int dmin = dp;
-      bpmExtrema = bpmFromPeaks;
-      if (dv < dmin) { dmin = dv; bpmExtrema = bpmFromValleys; }
-      if (dz < dmin) { dmin = dz; bpmExtrema = bpmZero; }
-      if (dmin > 14) bpmExtrema = 0;
+      int dmin = (dp < dv) ? dp : dv;
+      if (dmin <= 10) bpmExtrema = (dp <= dv) ? bpmFromPeaks : bpmFromValleys;
     }
   } else if (bpmAuto > 0) {
-    if (bpmFromPeaks > 0 && abs(bpmFromPeaks - bpmAuto) <= 14) bpmExtrema = bpmFromPeaks;
-    if (bpmFromValleys > 0 && abs(bpmFromValleys - bpmAuto) <= 14) bpmExtrema = bpmFromValleys;
-    if (bpmZero > 0 && abs(bpmZero - bpmAuto) <= 14) bpmExtrema = bpmZero;
-  } else if (bpmZero > 0) {
-    if (bpmFromPeaks > 0 && abs(bpmFromPeaks - bpmZero) <= 14) bpmExtrema = (bpmFromPeaks + bpmZero) / 2;
-    else if (bpmFromValleys > 0 && abs(bpmFromValleys - bpmZero) <= 14) bpmExtrema = (bpmFromValleys + bpmZero) / 2;
-    else bpmExtrema = bpmZero;
+    if (bpmFromPeaks > 0 && abs(bpmFromPeaks - bpmAuto) <= 10) bpmExtrema = bpmFromPeaks;
+    if (bpmFromValleys > 0 && abs(bpmFromValleys - bpmAuto) <= 10) bpmExtrema = bpmFromValleys;
   }
 
   lastHRAuto = bpmAuto;
   lastHRExtrema = bpmExtrema;
 
   int bpm = 0;
-
-  if (bpmAuto > 0 && bpmExtrema > 0 && abs(bpmAuto - bpmExtrema) <= 14) {
+  if (bpmAuto > 0 && bpmExtrema > 0 && abs(bpmAuto - bpmExtrema) <= 10) {
     bpm = (bpmAuto + bpmExtrema * 2) / 3;
-    lastHRQuality = 88;
+    lastHRQuality = 92;
+  } else if (bpmSpectrum > 0 && bpmAuto > 0 && abs(bpmSpectrum - bpmAuto) <= 10) {
+    bpm = (bpmSpectrum + bpmAuto) / 2;
+    lastHRQuality = 82;
+  } else if (bpmSpectrum > 0 && bpmExtrema > 0 && abs(bpmSpectrum - bpmExtrema) <= 10) {
+    bpm = (bpmSpectrum + bpmExtrema) / 2;
+    lastHRQuality = 82;
   } else if (extremaAgree && bpmExtrema > 0 && lastHRAutoScore >= 0.18f) {
     bpm = bpmExtrema;
     lastHRQuality = 76;
-  } else if (bpmAuto > 0 && lastHRAutoScore >= 0.26f) {
+  } else if (bpmSpectrum > 0 && isNormalStableHR(bpmSpectrum) && lastHRSpectrumScore >= 0.85f) {
+    // Cuu HR co tay: khi peak detector/autocorrelation khong khoa duoc, dung spectral peak
+    // trong mien sinh ly nghi ngoi 65-90 BPM. Phu hop log: AutoScore ~0.24-0.27, P/V co diem nhung bi reject.
+    bpm = bpmSpectrum;
+    lastHRQuality = 68;
+  } else if (bpmAuto > 0 && isNormalStableHR(bpmAuto) && lastHRAutoScore >= 0.17f) {
     bpm = bpmAuto;
-    lastHRQuality = 72;
-  } else if (bpmAuto > 0 && lastHRAutoScore >= 0.20f &&
-             lastSignalStats.irACPercent >= 0.45f &&
-             bpmAuto >= 50 && bpmAuto <= 120) {
-    // Cứu HR cổ tay: signal tốt nhưng đỉnh/valley khó bắt do PPG tròn/yếu.
+    lastHRQuality = 66;
+  } else if (bpmAuto > 0 && lastHRAutoScore >= 0.24f && lastSignalStats.irACPercent >= 0.18f) {
     bpm = bpmAuto;
-    lastHRQuality = 64;
-  } else if (bpmExtrema > 0 && lastSignalStats.irACPercent >= 0.50f) {
-    bpm = bpmExtrema;
     lastHRQuality = 62;
+  } else if (bpmSpectrum > 0 && lastHRSpectrumScore >= 1.05f && lastHRSpectrumSeparation >= 1.03f) {
+    bpm = bpmSpectrum;
+    lastHRQuality = 60;
   } else {
     lastHRRejectReason = 6;
     lastHRCandidate = 0;
     return 0;
   }
 
-  // Chặn BPM cao ảo khi chất lượng chưa đủ.
-  if (bpm > 125 && lastHRQuality < 82) {
+  // Chan BPM cao ao khi khong co chat luong du manh.
+  // Khong chan nguong 105 qua som vi nguoi do co the that su >105; viec on dinh se do addHRValue xu ly.
+  if (bpm > HR_DANGER_BPM && lastHRQuality < 90) {
     lastHRRejectReason = 7;
     lastHRCandidate = bpm;
     return 0;
   }
 
   if (displayHeartRate > 0) {
-    if (bpm > displayHeartRate + 18 && lastHRQuality < 82) {
-      lastHRRejectReason = 8;
-      lastHRCandidate = bpm;
-      return 0;
-    }
-    if (bpm < displayHeartRate - 22 && lastHRQuality < 82) {
+    int allowedRise = isNormalStableHR(displayHeartRate) ? 14 : 18;
+    if (bpm > displayHeartRate + allowedRise && lastHRQuality < 90) {
       lastHRRejectReason = 8;
       lastHRCandidate = bpm;
       return 0;
@@ -1025,9 +1090,8 @@ int calculateSpO2FromWindows(int *validWindowCount, int *hrMedianOut, int *valid
     int32_t rawHRIgnored = 0;
     int8_t rawValidHRIgnored = 0;
 
-    // Khong goi thu vien Maxim voi ca buffer vi ban goc thuong cap phat mang noi bo 100 mau.
-    // Chia buffer 20s thanh 5 cua so 100 mau, lay trung vi SpO2 hop le.
-    // HR tu Maxim chi dung lam fallback khi thuat toan buffer dai khong bat duoc chu ky.
+    // Chia buffer 500 mau thanh 5 cua so 100 mau.
+    // Lay trung vi de loai bo cua so bi nhiễu, uu tien vung 95-100.
     maxim_heart_rate_and_oxygen_saturation(
       &irBuffer[offset],
       SPO2_WINDOW_LENGTH,
@@ -1038,7 +1102,7 @@ int calculateSpO2FromWindows(int *validWindowCount, int *hrMedianOut, int *valid
       &rawValidHRIgnored
     );
 
-    if (rawValidSpO2 && rawSpO2 >= 88 && rawSpO2 <= 100) {
+    if (rawValidSpO2 && rawSpO2 >= 90 && rawSpO2 <= 100) {
       if (spo2Count < SPO2_WINDOW_COUNT) spo2Values[spo2Count++] = rawSpO2;
     }
 
@@ -1050,22 +1114,35 @@ int calculateSpO2FromWindows(int *validWindowCount, int *hrMedianOut, int *valid
   if (validWindowCount) *validWindowCount = spo2Count;
   if (validHRWindowCount) *validHRWindowCount = hrCount;
 
-  if (hrMedianOut) {
-    *hrMedianOut = 0;
+  int requiredHRWindows = (SPO2_WINDOW_COUNT >= 5) ? 3 : 2;
 
-    // Với đo cổ tay, thư viện Maxim 100 mẫu thường chỉ valid 2/5 cửa sổ.
-    // Nếu 2 cửa sổ này gần nhau thì vẫn có thể dùng làm fallback có kiểm soát.
-    if (hrCount >= 3) {
-      *hrMedianOut = medianIntInPlace(hrValues, hrCount);
-    } else if (hrCount == 2) {
-      if (abs(hrValues[0] - hrValues[1]) <= 18) {
-        *hrMedianOut = (hrValues[0] + hrValues[1]) / 2;
-      }
+  if (hrMedianOut) {
+    if (hrCount >= 2) {
+      int medHR = medianIntInPlace(hrValues, hrCount);
+      if (hrCount >= requiredHRWindows || isNormalStableHR(medHR)) *hrMedianOut = medHR;
+      else *hrMedianOut = 0;
+    } else {
+      *hrMedianOut = 0;
     }
   }
 
-  if (spo2Count < 2) return 0;
-  return medianIntInPlace(spo2Values, spo2Count);
+  if (spo2Count < 3) return 0;
+
+  int medianSpO2 = medianIntInPlace(spo2Values, spo2Count);
+
+  // Binh thuong: chi can 3/5 cua so hop le la hien thi 95-100.
+  if (medianSpO2 >= SPO2_STABLE_LOW && medianSpO2 <= SPO2_STABLE_HIGH) {
+    return medianSpO2;
+  }
+
+  // SpO2 thap <95 co the la that, nhung voi MAX30102 do co tay rat de la so ao.
+  // Chi cho qua khi it nhat 4/5 cua so cung hop le va signal/motion da tot.
+  if (medianSpO2 >= 90 && medianSpO2 < SPO2_STABLE_LOW && spo2Count >= 4 &&
+      lastSignalStats.irACPercent >= 0.40f && lastSignalStats.redACPercent >= 0.25f) {
+    return medianSpO2;
+  }
+
+  return 0;
 }
 
 void processCompletedHealthWindow() {
@@ -1073,10 +1150,10 @@ void processCompletedHealthWindow() {
   signalOK = isSignalGood(lastSignalStats);
 
   bool motionOK = isWristMotionOK();
-  bool hrSignalOK = (lastSignalStats.irAvg >= 60000 && lastSignalStats.irAvg <= 190000 &&
+  bool hrSignalOK = (lastSignalStats.irAvg >= 50000 && lastSignalStats.irAvg <= 190000 &&
                      lastSignalStats.saturatedSamples == 0 &&
-                     lastSignalStats.irACPercent >= 0.25 && lastSignalStats.irACPercent <= 8.0 &&
-                     lastSignalStats.irAC >= 120 && motionOK);
+                     lastSignalStats.irACPercent >= 0.15 && lastSignalStats.irACPercent <= 8.0 &&
+                     lastSignalStats.irAC >= 65 && motionOK);
 
   int rawSpO2Median = 0;
   int rawSpO2ValidWindows = 0;
@@ -1108,27 +1185,22 @@ void processCompletedHealthWindow() {
     } else {
       // Fallback co kiem soat tu thu vien Maxim 100 mau.
       // Chi dung khi nhieu cua so cung valid va BPM nam vung an toan, de tranh cac gia tri ao 125/136/143 trong log cu.
-      bool fallbackOK = (rawHRWindowMedian >= 50 && rawHRWindowMedian <= 118 &&
-                         rawHRValidWindows >= 2 &&
-                         // Đo cổ tay thường chỉ đạt valid HR windows=2/5.
-                         // Cho dùng 2/5 nếu hai cửa sổ gần nhau và tín hiệu IR đủ sạch.
-                         lastSignalStats.irACPercent >= 0.25f && lastSignalStats.irACPercent <= 6.5f &&
-                         lastSignalStats.irAC >= 90 && motionOK);
+      bool fallbackOK = (rawHRWindowMedian >= 55 && rawHRWindowMedian <= 105 &&
+                         rawHRValidWindows >= 1 &&
+                         lastSignalStats.irACPercent >= 0.15f && lastSignalStats.irACPercent <= 6.5f &&
+                         lastSignalStats.irAC >= 65 && motionOK);
 
-      if (fallbackOK && rawHRValidWindows == 2) {
-        if (displayHeartRate > 0) {
-          fallbackOK = (abs(rawHRWindowMedian - displayHeartRate) <= 18);
-        } else {
-          // Lần khóa đầu tiên với 2/5 chỉ nhận vùng nghỉ tương đối an toàn để tránh HR ảo.
-          fallbackOK = (rawHRWindowMedian >= 55 && rawHRWindowMedian <= 105);
-        }
+      // Neu fallback tu thu vien Maxim nam trong 65-90 thi 2/5 cua so hop le da du de hien thi ban dau.
+      // Ngoai vung nay van yeu cau 4/5 de tranh lay nham BPM cao ao.
+      if (fallbackOK && !isNormalStableHR(rawHRWindowMedian) && rawHRValidWindows < 3) {
+        fallbackOK = false;
       }
 
       if (fallbackOK) {
         lastHRAuto = 0;
         lastHRExtrema = 0;
         lastHRCandidate = rawHRWindowMedian;
-        lastHRQuality = (rawHRValidWindows >= 4) ? 72 : 65;
+        lastHRQuality = (rawHRValidWindows >= 3) ? 72 : 58;
         lastHRRejectReason = 11; // HR lay tu median cua cac cua so 100 mau
         addHRValue(rawHRWindowMedian);
       }
@@ -1168,6 +1240,9 @@ void processCompletedHealthWindow() {
     Serial.print(" | Pts P/V="); Serial.print(lastHRPeakCount);
     Serial.print("/"); Serial.print(lastHRValleyCount);
     Serial.print(" | AutoScore="); Serial.print(lastHRAutoScore, 2);
+    Serial.print(" | Spectrum="); Serial.print(lastHRSpectrum);
+    Serial.print(" S="); Serial.print(lastHRSpectrumScore, 2);
+    Serial.print(" Sep="); Serial.print(lastHRSpectrumSeparation, 2);
     Serial.print(" | MotionScore="); Serial.println(lastWristMotionScore, 2);
 
     Serial.print("HR100 ignored="); Serial.print(rawHRWindowMedian);
@@ -1176,6 +1251,8 @@ void processCompletedHealthWindow() {
 
     Serial.print("SpO2 median="); Serial.print(rawSpO2Median);
     Serial.print(" | SpO2 estimate="); Serial.print(estimatedSpO2);
+    Serial.print(" | LiveSpO2="); Serial.print(lastLiveSpO2Estimate);
+    Serial.print(" | Rraw/adj="); Serial.print(lastRawRatioX100); Serial.print("/"); Serial.print(lastAdjustedRatioX100);
     Serial.print(" | valid windows="); Serial.print(rawSpO2ValidWindows);
     Serial.print("/"); Serial.println(SPO2_WINDOW_COUNT);
 
@@ -1359,6 +1436,7 @@ void updateMAX30102Watchdog() {
 
 
 void processHealthSensor() {
+  clearExpiredHealthDisplay();
   if (!maxReady) return;
 
   particleSensor.check();
@@ -1388,13 +1466,21 @@ void processHealthSensor() {
       wristBadSampleCount++;
       wristDroppedSamples++;
 
-      // Khong reset qua som: co tay rat de bi nhiem 0.2-0.5s khi day deo/dong tac nho.
+      if (fingerDetected && lastFingerLostMs == 0 &&
+          (irValue < NO_FINGER_THRESHOLD || redValue < 22000)) {
+        lastFingerLostMs = now;
+      }
+
       if (wristBadSampleCount >= WRIST_BAD_SAMPLE_RESET_COUNT) {
         if (fingerDetected) {
-          Serial.println("Mat tiep xuc co tay/lo sang >1s -> reset buffer, giu BPM cu tam thoi");
-          resetHealthAcquisitionOnly();
-          fingerDetected = false;
-          ignoreSamplesUntil = now + FINGER_STABILIZE_MS;
+          Serial.println("Mat tiep xuc co tay/lo sang -> tam dung nap buffer, se an ket qua sau vai giay neu khong dat lai");
+          bufferIndex = 0;
+          wristBadSampleCount = 0;
+          ignoreSamplesUntil = now + LED_SETTLE_MS;
+          if (displayHeartRate > 0 && millis() - lastValidHeartRateMs <= KEEP_LAST_HEALTH_VALUE_MS) validHeartRate = 1;
+          if (displaySpO2 > 0 && millis() - lastValidSpO2Ms <= KEEP_LAST_HEALTH_VALUE_MS) validSPO2 = 1;
+          if (lastFingerLostMs == 0) lastFingerLostMs = now;
+          clearExpiredHealthDisplay();
           forceFirebaseSendOnNextChange();
         } else {
           fingerDetected = false;
@@ -1404,21 +1490,14 @@ void processHealthSensor() {
     }
 
     wristBadSampleCount = 0;
+    lastFingerLostMs = 0;
     lastGoodIRValue = irValue;
     lastGoodREDValue = redValue;
 
     if (irValue >= FINGER_THRESHOLD && !fingerDetected) {
       fingerDetected = true;
-
-      // Neu moi mat tiep xuc ngan roi co tay quay lai, chi reset buffer thu mau
-      // va giu BPM/SpO2 cu trong thoi gian ngan de UI/Firebase khong nhay null.
-      bool hasRecentHealthValue =
-        (displayHeartRate > 0 && (now - lastValidHeartRateMs <= KEEP_LAST_HEALTH_VALUE_MS)) ||
-        (displaySpO2 > 0 && (now - lastValidSpO2Ms <= KEEP_LAST_HEALTH_VALUE_MS));
-
-      if (hasRecentHealthValue) resetHealthAcquisitionOnly();
-      else resetHealthBuffers();
-
+      lastFingerLostMs = 0;
+      resetHealthBuffers();
       ignoreSamplesUntil = now + FINGER_STABILIZE_MS;
       lastBufferProgressPrint = 0;
       Serial.println("Da phat hien co tay. Deo sat cam bien va giu yen khoang 20 giay de tinh BPM on dinh...");
@@ -1443,7 +1522,9 @@ void processHealthSensor() {
     }
 
     if (irValue >= SATURATION_LEVEL || redValue >= SATURATION_LEVEL) {
-      resetHealthAcquisitionOnly();
+      if (displayHeartRate <= 0 || millis() - lastValidHeartRateMs > KEEP_LAST_HEALTH_VALUE_MS) validHeartRate = 0;
+      if (displaySpO2 <= 0 || millis() - lastValidSpO2Ms > KEEP_LAST_HEALTH_VALUE_MS) validSPO2 = 0;
+      bufferIndex = 0;
       ignoreSamplesUntil = now + LED_SETTLE_MS;
       Serial.println("DANG BAO HOA ADC -> bo mau, noi long day deo hoac cho auto LED giam.");
       return;
@@ -1470,6 +1551,8 @@ void processHealthSensor() {
       sampleTimeBuffer[bufferIndex] = sampleTimeBuffer[bufferIndex - 1] + SAMPLE_PERIOD_MS;
     }
     bufferIndex++;
+
+    updateLiveSpO2Preview();
 
     if (now - lastBufferProgressPrint > 1000 && bufferIndex < BUFFER_LENGTH) {
       lastBufferProgressPrint = now;

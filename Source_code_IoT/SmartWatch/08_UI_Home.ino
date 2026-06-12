@@ -50,13 +50,15 @@ void drawHomeWatchFace() {
   updateClock();
 
   int displayBPM = 0;
-  if (fingerDetected && validHeartRate && displayHeartRate >= 45 && displayHeartRate <= 150) {
+  if ((fingerDetected || (lastValidHeartRateMs > 0 && millis() - lastValidHeartRateMs <= KEEP_LAST_HEALTH_VALUE_MS)) && validHeartRate && displayHeartRate >= 40 && displayHeartRate <= 150) {
     displayBPM = displayHeartRate;
   }
 
   int homeSpO2 = 0;
-  if (fingerDetected && validSPO2 && displaySpO2 >= 90 && displaySpO2 <= 100) {
+  if (displayBPM > 0 && fingerDetected && validSPO2 && displaySpO2 >= 90 && displaySpO2 <= 100) {
     homeSpO2 = displaySpO2;
+  } else if (displayBPM > 0 && (fingerDetected || (lastLiveSpO2EstimateMs > 0 && millis() - lastLiveSpO2EstimateMs <= KEEP_LAST_HEALTH_VALUE_MS)) && lastLiveSpO2Estimate >= 95 && lastLiveSpO2Estimate <= 100) {
+    homeSpO2 = lastLiveSpO2Estimate;
   }
 
   // CHỈ VẼ TOÀN BỘ HOME 1 LẦN
@@ -170,5 +172,4 @@ tft.setFont(NULL);
     tft.print(" %");
   }
 }
-
 

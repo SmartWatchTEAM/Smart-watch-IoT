@@ -20,13 +20,14 @@ const unsigned long FIREBASE_MIN_SEND_INTERVAL         = 7000;     // chi gui sa
 const unsigned long FIREBASE_RETRY_INTERVAL            = 30000;    // neu loi HTTP, doi 30s moi thu lai de tranh lag
 const unsigned long FIREBASE_HISTORY_INTERVAL          = 30000;    // luu history BPM moi 30s de web thong ke
 const unsigned long FIREBASE_DAILY_INTERVAL            = 30000;    // cap nhat tong ket ngay sau khi co BPM hop le
-const unsigned long FIREBASE_FRESH_BPM_MAX_AGE         = 2500;     // BPM phai vua duoc tinh trong cua so 500 mau
+const unsigned long FIREBASE_FRESH_BPM_MAX_AGE         = 5000;     // BPM phai vua duoc tinh trong cua so 500 mau
 const unsigned long FIREBASE_STEP_UPLOAD_INTERVAL       = 7000;     // cap nhat buoc chan toi da moi 7s de web thay doi realtime
 const int FIREBASE_MIN_STEP_DELTA                       = 3;        // di them it nhat 3 buoc moi day step len web
 
 String lastFirebaseDataKey = "";
 String lastFirebaseUrgentKey = "";
 bool firebaseHealthWindowReady = false;
+bool firebaseHealthClearPending = false;
 bool firebaseForceNext = true;
 unsigned long lastFirebaseFailTime = 0;
 
@@ -101,7 +102,7 @@ String getFirebaseTimestampMs() {
 
 
 bool hasValidFirebaseBPM() {
-  return fingerDetected && validHeartRate && displayHeartRate >= 40 && displayHeartRate <= 180;
+  return fingerDetected && validHeartRate && displayHeartRate >= HR_ALGO_MIN_BPM && displayHeartRate <= HR_ALGO_MAX_BPM;
 }
 
 
@@ -115,7 +116,9 @@ bool hasFreshFirebaseBPM() {
 
 
 bool hasValidFirebaseSpO2() {
-  return fingerDetected && validSPO2 && displaySpO2 >= 80 && displaySpO2 <= 100;
+  return hasValidFirebaseBPM() &&
+         ((validSPO2 && displaySpO2 >= 90 && displaySpO2 <= 100) ||
+          (lastLiveSpO2Estimate >= 95 && lastLiveSpO2Estimate <= 100));
 }
 
 
@@ -139,8 +142,11 @@ String firebaseValueBPMKey() {
 
 
 String firebaseValueSpO2Key() {
-  if (hasValidFirebaseSpO2()) {
+  if (hasValidFirebaseBPM() && validSPO2 && displaySpO2 >= 90 && displaySpO2 <= 100) {
     return String(displaySpO2);
+  }
+  if (hasValidFirebaseBPM() && lastLiveSpO2Estimate >= 95 && lastLiveSpO2Estimate <= 100) {
+    return String(lastLiveSpO2Estimate);
   }
   return "null";
 }
@@ -154,6 +160,7 @@ String buildFirebaseDataKey() {
 
   key += "bpm="; key += firebaseValueBPMKey();
   key += "|spo2="; key += firebaseValueSpO2Key();
+  key += "|heartAlert="; key += heartRateAlertLevel();
   key += "|finger="; key += fingerDetected ? "1" : "0";
   key += "|signal="; key += signalOK ? "1" : "0";
   key += "|fall="; key += (alertActive && alertType == ALERT_FALL) ? "1" : "0";
@@ -197,6 +204,11 @@ void markFirebaseHealthWindowReady() {
 }
 
 
+void markFirebaseHealthCleared() {
+  firebaseHealthClearPending = true;
+}
+
+
 void forceFirebaseSendOnNextChange() {
   firebaseForceNext = true;
 }
@@ -213,11 +225,28 @@ String buildFirebasePayload() {
   }
 
   payload += ",\"spo2\":";
-  if (hasValidFirebaseSpO2()) {
+  if (hasValidFirebaseBPM() && validSPO2 && displaySpO2 >= 90 && displaySpO2 <= 100) {
     payload += String(displaySpO2);
+  } else if (hasValidFirebaseBPM() && lastLiveSpO2Estimate >= 95 && lastLiveSpO2Estimate <= 100) {
+    payload += String(lastLiveSpO2Estimate);
   } else {
     payload += "null";
   }
+
+  payload += ",\"heartAlert\":";
+  payload += isHeartRateAlertActive() ? "true" : "false";
+
+  payload += ",\"heartAlertLevel\":\"";
+  payload += heartRateAlertLevel();
+  payload += "\"";
+
+  payload += ",\"heartAlertText\":\"";
+  if (isHeartRateAlertActive()) {
+    payload += (displayHeartRate > HR_ALERT_HIGH_BPM) ? "Nhip tim cao bat thuong" : "Nhip tim thap bat thuong";
+  } else {
+    payload += "Binh thuong";
+  }
+  payload += "\"";
 
   payload += ",\"finger\":";
   payload += fingerDetected ? "true" : "false";
@@ -562,7 +591,8 @@ void updateFirebaseIfNeeded() {
 
   // HR/SpO2: chi gui khi da tinh xong cua so MAX30102 500 mau va BPM vua hop le.
   bool bpmWindowDone = firebaseHealthWindowReady;
-  bool bpmReadyToUpload = bpmWindowDone && hasFreshFirebaseBPM();
+  bool bpmReadyToUpload = bpmWindowDone && hasFreshFirebaseBPM() && hasValidFirebaseSpO2();
+  bool healthClearReadyToUpload = firebaseHealthClearPending;
 
   // Steps: cap nhat rieng bang PATCH de web thay doi so buoc realtime,
   // nhung khong ghi de bpm/spo2 thanh null trong luc dang do HR.
@@ -583,12 +613,12 @@ void updateFirebaseIfNeeded() {
 
   // Neu cua so HR vua xong nhung BPM khong hop le, chi bo qua phan HR.
   // Neu co step moi thi van cho gui step PATCH ben duoi.
-  if (bpmWindowDone && !bpmReadyToUpload) {
-    Serial.println("Firebase HR skipped: HR window done but BPM invalid -> khong gui bpm:null");
+  if (bpmWindowDone && !bpmReadyToUpload && !healthClearReadyToUpload) {
+    Serial.println("Firebase HR/SpO2 skipped: cua so do xong nhung chua du ca BPM va SpO2 hop le");
     firebaseHealthWindowReady = false;
   }
 
-  if (!bpmReadyToUpload && !urgentChanged && !stepReadyToUpload) {
+  if (!bpmReadyToUpload && !healthClearReadyToUpload && !urgentChanged && !stepReadyToUpload) {
     return;
   }
 
@@ -596,7 +626,7 @@ void updateFirebaseIfNeeded() {
   // Rieng Fall/SOS van duoc gui ngay khi co thay doi trang thai.
   if (lastFirebaseFailTime > 0 &&
       now - lastFirebaseFailTime < FIREBASE_RETRY_INTERVAL &&
-      !urgentChanged) {
+      !urgentChanged && !healthClearReadyToUpload) {
     return;
   }
 
@@ -608,8 +638,8 @@ void updateFirebaseIfNeeded() {
 
   // 1) Gui full latest khi co BPM hop le hoac Fall/SOS.
   // Full payload co bpm/spo2, vi luc nay ket qua suc khoe da san sang.
-  bool latestDue = urgentChanged || bpmReadyToUpload;
-  bool latestIntervalOK = firstRun || urgentChanged ||
+  bool latestDue = urgentChanged || bpmReadyToUpload || healthClearReadyToUpload;
+  bool latestIntervalOK = firstRun || urgentChanged || healthClearReadyToUpload ||
                           (now - lastFirebaseSend >= FIREBASE_MIN_SEND_INTERVAL);
 
   if (latestDue && latestIntervalOK) {
@@ -621,6 +651,7 @@ void updateFirebaseIfNeeded() {
       lastFirebaseUrgentKey = urgentKey;
       firebaseForceNext = false;
       firebaseHealthWindowReady = false;
+      firebaseHealthClearPending = false;
       lastFirebaseFailTime = 0;
 
       // Full payload da gom step, nen cap nhat moc step de khong PATCH lap lai ngay.
@@ -639,7 +670,7 @@ void updateFirebaseIfNeeded() {
 
   // 2) Neu khong co BPM moi nhung buoc chan thay doi, PATCH rieng cac truong step.
   // PATCH khong cham vao bpm/spo2 nen web khong bi mat gia tri HR cu.
-  if (!bpmReadyToUpload && !urgentChanged && stepReadyToUpload) {
+  if (!bpmReadyToUpload && !healthClearReadyToUpload && !urgentChanged && stepReadyToUpload) {
     if (sendStepPatchToFirebase()) {
       lastFirebaseUploadedStepCount = stepCount;
       lastFirebaseUploadedCadenceSPM = stepCadenceSPM;

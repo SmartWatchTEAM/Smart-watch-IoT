@@ -295,13 +295,18 @@ void drawStaticHealthScreen() {
 
 void drawHealthDynamicValues() {
   int bpmValue = 0;
-  if (fingerDetected && validHeartRate && displayHeartRate >= 40 && displayHeartRate <= 160) {
+  if ((fingerDetected || (lastValidHeartRateMs > 0 && millis() - lastValidHeartRateMs <= KEEP_LAST_HEALTH_VALUE_MS)) && validHeartRate && displayHeartRate >= 40 && displayHeartRate <= 160) {
     bpmValue = displayHeartRate;
   }
 
   int spo2Value = 0;
-  if (fingerDetected && validSPO2 && displaySpO2 >= 80 && displaySpO2 <= 100) {
+  bool spo2Live = false;
+  if (bpmValue > 0 && fingerDetected && validSPO2 && displaySpO2 >= 90 && displaySpO2 <= 100) {
     spo2Value = displaySpO2;
+    spo2Live = true;
+  } else if (bpmValue > 0 && (fingerDetected || (lastLiveSpO2EstimateMs > 0 && millis() - lastLiveSpO2EstimateMs <= KEEP_LAST_HEALTH_VALUE_MS)) && lastLiveSpO2Estimate >= 95 && lastLiveSpO2Estimate <= 100) {
+    spo2Value = lastLiveSpO2Estimate;
+    spo2Live = true;
   }
 
   // HR value area
@@ -337,7 +342,8 @@ void drawHealthDynamicValues() {
   tft.print("%");
 
   tft.fillRect(174, H_SPO2_Y + 21, 44, 18, H_BLUE_BG);
-  if (spo2Value > 0) drawHealthStatusPill(178, H_SPO2_Y + 22, "Live", H_BLUE_BORDER);
+  if (spo2Live) drawHealthStatusPill(178, H_SPO2_Y + 22, "Live", H_BLUE_BORDER);
+  else if (fingerDetected) drawHealthStatusPill(178, H_SPO2_Y + 24, "Calc", H_YELLOW);
   else drawHealthStatusPill(178, H_SPO2_Y + 24, "Wait", H_YELLOW);
 }
 
@@ -497,5 +503,4 @@ void drawHealthScreen() {
   drawHealthDynamicValues();
   drawPremiumHealthGraph();
 }
-
 
