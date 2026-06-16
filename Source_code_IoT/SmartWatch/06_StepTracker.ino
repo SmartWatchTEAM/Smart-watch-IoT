@@ -27,7 +27,9 @@ float getStepDistanceKm() {
 
 
 int getStepCalories() {
-  return (int)(stepCount * KCAL_PER_STEP + 0.5f);
+  float distanceKm = getStepDistanceKm();
+  float kcal = USER_WEIGHT_KG * distanceKm * WALKING_KCAL_PER_KG_KM;
+  return (int)(kcal + 0.5f);
 }
 
 
@@ -63,9 +65,13 @@ void resetStepDataForNewDay() {
   stepValleyValue = 0.0f;
   stepNoiseAvg = 0.04f;
   stepDynamicThreshold = 0.12f;
+  stepAmplitudeAvg = 0.18f;
+  stepGyroBaseline = 0.0f;
+  stepWristSignal = 0.0f;
   stepAboveThreshold = false;
   stepWalkConfirmCount = 0;
   stepCadenceSPM = 0;
+  stepPeakStartTime = 0;
 
   sedentaryStartTime = millis();
   sedentaryWarning = false;
@@ -111,6 +117,25 @@ void addOneStep() {
 
 
 void registerStepCandidate(unsigned long now) {
+  // Che do deo co tay: dem tuong doi, cong ngay moi nhip hop le.
+  // Chi chan cac dinh qua sat nhau de tranh mot lan lac bi dem thanh nhieu buoc.
+  if (lastStepCandidateTime > 0) {
+    unsigned long interval = now - lastStepCandidateTime;
+    if (interval < STEP_MIN_INTERVAL) return;
+
+    if (interval <= STEP_MAX_INTERVAL) {
+      stepCadenceSPM = (int)(60000UL / interval);
+    } else {
+      stepCadenceSPM = 0;
+    }
+  } else {
+    stepCadenceSPM = 0;
+  }
+
+  addOneStep();
+  if (stepWalkConfirmCount < 250) stepWalkConfirmCount++;
+  lastStepCandidateTime = now;
+  return;
   // Nếu đã quá lâu không có nhịp kế tiếp thì coi như bắt đầu một cụm đi mới.
   if (lastStepCandidateTime == 0 || now - lastStepCandidateTime > STEP_BURST_TIMEOUT) {
     stepWalkConfirmCount = 1;
@@ -132,7 +157,7 @@ void registerStepCandidate(unsigned long now) {
   stepCadenceSPM = (int)(60000UL / interval);
 
   // Nhịp người đi/chạy thường nằm trong khoảng này. Ngoài khoảng này dễ là nhiễu.
-  if (stepCadenceSPM < 42 || stepCadenceSPM > 200) {
+  if (stepCadenceSPM < 36 || stepCadenceSPM > 220) {
     stepWalkConfirmCount = 1;
     lastStepCandidateTime = now;
     return;
@@ -166,56 +191,96 @@ void updateStepTracker() {
   lastStepUpdateTime = now;
 
   float accMag = sqrt(accX * accX + accY * accY + accZ * accZ);
+  float gyroMag = sqrt(gyroX * gyroX + gyroY * gyroY + gyroZ * gyroZ);
 
   // Loại bỏ mẫu va đập / đọc lỗi quá mạnh.
-  if (accMag < 0.45f || accMag > 3.20f) {
+  if (accMag < 0.45f || accMag > 3.20f || gyroMag > 12.0f) {
     stepAboveThreshold = false;
-    stepWalkConfirmCount = 0;
+    if (lastStepCandidateTime == 0 || now - lastStepCandidateTime > STEP_BURST_TIMEOUT) {
+      stepWalkConfirmCount = 0;
+    }
     lastStepSignal = 0.0f;
     return;
   }
 
   // 1) Low-pass để ước lượng thành phần trọng lực quanh 1g.
-  stepGravity = stepGravity * 0.94f + accMag * 0.06f;
+  stepGravity = stepGravity * 0.965f + accMag * 0.035f;
 
   // 2) High-pass + smoothing: giữ dao động do bước chân, giảm rung nhanh.
   float highPass = accMag - stepGravity;
-  stepSignalFiltered = stepSignalFiltered * 0.72f + highPass * 0.28f;
+  stepSignalFiltered = stepSignalFiltered * 0.78f + highPass * 0.22f;
+  stepGyroBaseline = stepGyroBaseline * 0.965f + gyroMag * 0.035f;
+  float gyroSwing = fabs(gyroMag - stepGyroBaseline);
+  stepWristSignal = stepWristSignal * 0.74f + gyroSwing * 0.26f;
+  float stepSignal = stepSignalFiltered + stepWristSignal * 0.20f;
 
   // 3) Ngưỡng động theo mức nhiễu thực tế của người đeo.
-  stepNoiseAvg = stepNoiseAvg * 0.96f + fabs(stepSignalFiltered) * 0.04f;
-  stepDynamicThreshold = constrain(stepNoiseAvg * 1.85f, STEP_THRESHOLD_MIN, STEP_THRESHOLD_MAX);
+  float absSignal = fabs(stepSignal);
+  if (absSignal < stepDynamicThreshold) {
+    stepNoiseAvg = stepNoiseAvg * 0.985f + absSignal * 0.015f;
+  } else {
+    stepNoiseAvg = stepNoiseAvg * 0.995f + absSignal * 0.005f;
+  }
 
-  if (stepSignalFiltered < stepValleyValue) {
-    stepValleyValue = stepSignalFiltered;
+  float thresholdFromNoise = stepNoiseAvg * 2.20f;
+  float thresholdFromStep = stepAmplitudeAvg * 0.45f;
+  float thresholdBase = (thresholdFromNoise > thresholdFromStep) ? thresholdFromNoise : thresholdFromStep;
+  stepDynamicThreshold = constrain(thresholdBase, STEP_THRESHOLD_MIN, STEP_THRESHOLD_MAX);
+
+  if (stepSignal < stepValleyValue) {
+    stepValleyValue = stepSignal;
   }
 
   bool stepDetected = false;
 
   // Bắt đầu một đỉnh bước khi tín hiệu vượt ngưỡng.
-  if (!stepAboveThreshold && stepSignalFiltered > stepDynamicThreshold) {
+  bool intervalReady = (lastStepCandidateTime == 0) ||
+                       (now - lastStepCandidateTime >= STEP_MIN_INTERVAL);
+
+  if (!stepAboveThreshold &&
+      lastStepSignal <= stepDynamicThreshold * 0.70f &&
+      stepSignal > stepDynamicThreshold) {
     stepAboveThreshold = true;
-    stepPeakValue = stepSignalFiltered;
+    stepPeakValue = stepSignal;
+    stepPeakStartTime = now;
+  }
+
+  if (!stepDetected &&
+      intervalReady &&
+      stepWristSignal > 0.42f &&
+      gyroSwing > 0.55f &&
+      fabs(stepSignalFiltered) > 0.060f &&
+      accMag > 0.78f && accMag < 2.20f) {
+    stepDetected = true;
   }
 
   // Cập nhật đỉnh cao nhất trong cùng một nhịp.
-  if (stepAboveThreshold && stepSignalFiltered > stepPeakValue) {
-    stepPeakValue = stepSignalFiltered;
+  if (stepAboveThreshold && stepSignal > stepPeakValue) {
+    stepPeakValue = stepSignal;
   }
 
   // Xác nhận bước khi tín hiệu rơi xuống dưới nửa ngưỡng: đủ một chu kỳ peak -> valley.
-  if (stepAboveThreshold && stepSignalFiltered < (stepDynamicThreshold * 0.45f)) {
+  if (stepAboveThreshold && stepSignal < (stepDynamicThreshold * 0.45f)) {
     float amplitude = stepPeakValue - stepValleyValue;
+    unsigned long peakWidth = now - stepPeakStartTime;
+    bool cadenceGapOK = (lastStepCandidateTime == 0) ||
+                        (now - lastStepCandidateTime >= STEP_MIN_INTERVAL);
 
     if (amplitude >= STEP_MIN_AMPLITUDE &&
+        amplitude >= stepDynamicThreshold * 1.45f &&
         stepPeakValue <= STEP_MAX_SIGNAL &&
-        accMag > 0.70f && accMag < 2.60f) {
+        peakWidth >= STEP_PEAK_MIN_WIDTH_MS &&
+        peakWidth <= STEP_PEAK_MAX_WIDTH_MS &&
+        cadenceGapOK &&
+        accMag > 0.78f && accMag < 2.30f) {
       stepDetected = true;
+      stepAmplitudeAvg = stepAmplitudeAvg * 0.86f + amplitude * 0.14f;
     }
 
     stepAboveThreshold = false;
     stepPeakValue = 0.0f;
-    stepValleyValue = stepSignalFiltered;
+    stepValleyValue = stepSignal;
+    stepPeakStartTime = 0;
   }
 
   if (stepDetected) {
@@ -235,8 +300,7 @@ void updateStepTracker() {
   }
 
   // Cảnh báo ngồi lâu: reset bộ đếm nếu có bước hoặc có chuyển động đủ rõ.
-  float gyroMag = sqrt(gyroX * gyroX + gyroY * gyroY + gyroZ * gyroZ);
-  bool moving = stepDetected || fabs(stepSignalFiltered) > 0.055f || gyroMag > 0.25f;
+  bool moving = stepDetected || fabs(stepSignal) > 0.045f || gyroMag > 0.20f;
 
   if (moving) {
     sedentaryStartTime = now;
@@ -248,7 +312,5 @@ void updateStepTracker() {
     }
   }
 
-  lastStepSignal = stepSignalFiltered;
+  lastStepSignal = stepSignal;
 }
-
-

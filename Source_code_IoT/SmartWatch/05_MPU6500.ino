@@ -120,47 +120,67 @@ void updateFallDetection() {
       if (fallAccMag < FREE_FALL_THRESHOLD) {
         fallState = FALL_FREE;
         fallStateTime = now;
+        fallFreeStartTime = now;
+        fallTiltSeen = false;
+      } else if (fallAccMag > HARD_IMPACT_THRESHOLD) {
+        fallState = FALL_IMPACT;
+        fallStateTime = now;
+        fallFreeStartTime = 0;
+        fallTiltSeen = false;
       }
       break;
 
     case FALL_FREE:
-      if (fallAccMag > IMPACT_THRESHOLD) {
+      if (fallAccMag > IMPACT_THRESHOLD &&
+          now - fallFreeStartTime >= FREE_FALL_MIN_TIME) {
         fallState = FALL_IMPACT;
         fallStateTime = now;
       }
 
-      if (now - fallStateTime > 1000) {
+      if (now - fallFreeStartTime > FREE_FALL_MAX_TIME) {
         fallState = FALL_NORMAL;
+        fallFreeStartTime = 0;
+        fallTiltSeen = false;
       }
       break;
 
     case FALL_IMPACT:
       if (fabs(fallPitch) > ANGLE_THRESHOLD || fabs(fallRoll) > ANGLE_THRESHOLD) {
+        fallTiltSeen = true;
         fallState = FALL_CHECK_STILL;
         fallStateTime = now;
         stillStartTime = now;
       }
 
-      if (now - fallStateTime > 2000) {
+      if (now - fallStateTime > IMPACT_TO_TILT_TIMEOUT) {
         fallState = FALL_NORMAL;
+        fallFreeStartTime = 0;
+        fallTiltSeen = false;
       }
       break;
 
     case FALL_CHECK_STILL:
-      if (gyroMag < GYRO_STILL_THRESHOLD && fabs(fallAccMag - 1.0) < 0.4) {
+      if (fabs(fallPitch) > ANGLE_THRESHOLD || fabs(fallRoll) > ANGLE_THRESHOLD) {
+        fallTiltSeen = true;
+      }
+
+      if (fallTiltSeen &&
+          gyroMag < GYRO_STILL_THRESHOLD &&
+          fabs(fallAccMag - 1.0) < 0.45) {
         if (now - stillStartTime > STILL_TIME) {
             Serial.println("========== FALL DETECTED ==========");
 
             alertActive = true;
             alertType = ALERT_FALL;
 
-            currentScreen = SCREEN_HEALTH;   // tự chuyển sang màn hình Health
-
             fallState = FALL_CONFIRMED;
+            fallFreeStartTime = 0;
+            fallTiltSeen = false;
 
             standbyMode = false;
             digitalWrite(TFT_BL, HIGH);
             uiDrawn = false;
+            forceFirebaseSendOnNextChange();
         }
       } else {
         stillStartTime = now;
@@ -168,6 +188,8 @@ void updateFallDetection() {
 
       if (now - fallStateTime > 6000 && !alertActive) {
         fallState = FALL_NORMAL;
+        fallFreeStartTime = 0;
+        fallTiltSeen = false;
       }
       break;
 
@@ -224,5 +246,4 @@ void setupMPU6500() {
   mpuReady = true;
   Serial.println("MPU6500 SUCCESS");
 }
-
 

@@ -9,6 +9,8 @@ void clearAlert() {
 
   fallState = FALL_NORMAL;
   fallStateTime = 0;
+  fallFreeStartTime = 0;
+  fallTiltSeen = false;
   stillStartTime = 0;
 
   digitalWrite(BUZZER_PIN, LOW);

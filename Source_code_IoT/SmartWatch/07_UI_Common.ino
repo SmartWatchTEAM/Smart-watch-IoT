@@ -366,11 +366,11 @@ void drawAlertScreen() {
 
   drawWatchCaseFrame();
 
-  bool isSOS = (alertType == ALERT_SOS);
-  uint16_t accent = isSOS ? ST77XX_RED : 0xFD20;
-  const char *title = isSOS ? "SOS" : "FALL";
-  const char *line1 = isSOS ? "DANG GUI CANH BAO" : "PHAT HIEN TE NGA";
-  const char *hint  = isSOS ? "Nhan ngan 1 nut de tat" : "Nhan nut de tat canh bao";
+  bool isSOS = (alertType == ALERT_SOS || alertType == ALERT_FALL);
+  uint16_t accent = ST77XX_RED;
+  const char *title = "SOS";
+  const char *line1 = (alertType == ALERT_FALL) ? "DANG TE NGA" : "DANG GUI CANH BAO";
+  const char *hint  = "Nhan nut de tat canh bao";
 
   // Card chính: nằm gọn trong màn 240x280, không bị cắt chữ.
   drawAlertGlowCard(22, 34, 196, 212, accent);
@@ -424,5 +424,4 @@ void drawMainScreen() {
     drawStepScreen();
   }
 }
-
 

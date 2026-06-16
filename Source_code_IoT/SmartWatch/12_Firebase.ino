@@ -298,6 +298,9 @@ String buildFirebasePayload() {
   payload += ",\"battery\":";
   payload += String(batteryPercent);
 
+  payload += ",\"batteryVoltage\":";
+  payload += String(batteryFilteredVoltage, 2);
+
   payload += ",\"steps\":";
   payload += String(stepCount);
 
@@ -379,6 +382,9 @@ String buildFirebaseStepPatchPayload() {
 
   payload += ",\"battery\":";
   payload += String(batteryPercent);
+
+  payload += ",\"batteryVoltage\":";
+  payload += String(batteryFilteredVoltage, 2);
 
   payload += ",\"wifi\":";
   payload += (WiFi.status() == WL_CONNECTED) ? "true" : "false";
@@ -560,6 +566,9 @@ bool sendDailySummaryToFirebase() {
 
   payload += ",\"battery\":";
   payload += String(batteryPercent);
+
+  payload += ",\"batteryVoltage\":";
+  payload += String(batteryFilteredVoltage, 2);
 
   payload += ",\"fall\":";
   payload += (alertActive && alertType == ALERT_FALL) ? "true" : "false";

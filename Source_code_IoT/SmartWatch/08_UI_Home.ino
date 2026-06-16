@@ -126,6 +126,11 @@ void drawHomeWatchFace() {
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_WHITE);
   tft.setCursor(wifiConnected ? 40 : 43, 43);
+  if (wifiConnected) tft.print("WiFi");
+  else tft.print("OFF");
+
+  drawStatusCard(164, 24, 52, 27);
+  drawBatteryIcon(184, 30, batteryPercent);
 
   tft.fillRoundRect(30, 60, 180, 30, 12, COLOR_PANEL);
   tft.drawRoundRect(30, 60, 180, 30, 12, 0x2104);
@@ -172,4 +177,3 @@ tft.setFont(NULL);
     tft.print(" %");
   }
 }
-

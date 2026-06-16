@@ -7,6 +7,7 @@
 #include <time.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <Preferences.h>
 
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7789.h>
@@ -54,6 +55,12 @@
 // Đấu nút: 1 chân vào GPIO, 1 chân vào GND vì code dùng INPUT_PULLUP.
 #define BTN_A_PIN 8
 #define BTN_B_PIN 9
+
+// Mac dinh khong do dien ap pin vi mach hien tai chi cap nguon:
+// BAT- -> GND, BAT+ -> cong tac -> 5V ESP32.
+// Khong co day ADC/cau chia ap thi chi uoc luong % theo thoi gian dung.
+#define BATTERY_USE_ADC 0
+#define BAT_ADC_PIN 1
 
 // Địa chỉ I2C
 #define MAX30102_ADDR 0x57
@@ -132,7 +139,13 @@ String currentDateText = "--, --/--";
 String weatherCity = "TP.HCM";
 String weatherText = "--C";
 String spo2HomeText = "--";
-int batteryPercent = 82;
+int batteryPercent = 0;
+float batteryVoltage = 0.0f;
+float batteryFilteredVoltage = 0.0f;
+unsigned long lastBatteryUpdate = 0;
+unsigned long lastBatteryPersist = 0;
+float batteryRuntimePercent = 100.0f;
+Preferences batteryPrefs;
 int quickBPM = 0;
 bool wifiConnected = false;
 
@@ -225,7 +238,7 @@ const int HR_ALGO_MAX_BPM = 135;
 // Vung hien thi on dinh cho nguoi binh thuong luc nghi.
 // Code KHONG ep gia tri gia; no uu tien/giu on dinh trong vung nay khi tin hieu PPG du tot.
 // Neu BPM cao that va lap lai nhieu cua so voi chat luong cao, code van cho hien thi de canh bao.
-const int HR_STABLE_LOW_BPM   = 65;
+const int HR_STABLE_LOW_BPM   = 71;
 const int HR_STABLE_HIGH_BPM  = 90;
 const int HR_HIGH_CONFIRM_BPM = 100;
 const int HR_DANGER_BPM       = 120;
@@ -343,12 +356,18 @@ FallState fallState = FALL_NORMAL;
 
 unsigned long fallStateTime = 0;
 unsigned long stillStartTime = 0;
+unsigned long fallFreeStartTime = 0;
+bool fallTiltSeen = false;
 
-const float FREE_FALL_THRESHOLD = 0.55;
-const float IMPACT_THRESHOLD = 2.4;
-const float ANGLE_THRESHOLD = 60.0;
-const float GYRO_STILL_THRESHOLD = 1.0;
-const unsigned long STILL_TIME = 2000;
+const float FREE_FALL_THRESHOLD = 0.65;
+const float IMPACT_THRESHOLD = 2.05;
+const float HARD_IMPACT_THRESHOLD = 2.75;
+const float ANGLE_THRESHOLD = 50.0;
+const float GYRO_STILL_THRESHOLD = 0.85;
+const unsigned long FREE_FALL_MIN_TIME = 60;
+const unsigned long FREE_FALL_MAX_TIME = 900;
+const unsigned long IMPACT_TO_TILT_TIMEOUT = 1800;
+const unsigned long STILL_TIME = 1800;
 
 // =======================================================
 // ALERT SYSTEM
@@ -372,8 +391,12 @@ bool standbyMode = false;
 int stepCount = 0;
 int stepGoal = 10000;
 
-const float STEP_LENGTH_M = 0.70f;    // sải chân trung bình: 0.70 m/bước
-const float KCAL_PER_STEP = 0.04f;    // ước lượng đơn giản: 0.04 kcal/bước
+// Hieu chinh theo nguoi deo de distance/kcal sat thuc te hon.
+// Neu chua co ho so nguoi dung, 165 cm / 60 kg la moc trung binh de demo.
+const float USER_HEIGHT_CM = 165.0f;
+const float USER_WEIGHT_KG = 60.0f;
+const float STEP_LENGTH_M = (USER_HEIGHT_CM * 0.415f) / 100.0f;
+const float WALKING_KCAL_PER_KG_KM = 0.75f;  // kcal ~= can nang(kg) * km * 0.75
 
 // Bộ lọc gia tốc cho thuật toán đếm bước
 float stepGravity = 1.0f;             // nền gia tốc quanh 1g
@@ -383,10 +406,14 @@ float stepPeakValue = 0.0f;
 float stepValleyValue = 0.0f;
 float stepNoiseAvg = 0.04f;
 float stepDynamicThreshold = 0.12f;
+float stepAmplitudeAvg = 0.18f;
+float stepGyroBaseline = 0.0f;
+float stepWristSignal = 0.0f;
 bool stepAboveThreshold = false;
 
 unsigned long lastStepTime = 0;             // lần cuối đã cộng bước thật
 unsigned long lastStepCandidateTime = 0;    // lần cuối thấy đỉnh bước ứng viên
+unsigned long stepPeakStartTime = 0;
 unsigned long lastStepUpdateTime = 0;
 unsigned long lastStepSampleTime = 0;
 unsigned long activeWalkMs = 0;
@@ -402,15 +429,17 @@ int lastStepDayOfYear = -1;
 
 // Thông số chống đếm nhầm. Có thể hiệu chỉnh sau khi test 100 bước thật.
 const unsigned long STEP_SAMPLE_INTERVAL_MS = 20;    // 50Hz xử lý thuật toán
-const unsigned long STEP_MIN_INTERVAL = 300;         // <300ms thường là rung/nhiễu
-const unsigned long STEP_MAX_INTERVAL = 1400;        // >1.4s xem như bắt đầu cụm đi mới
+const unsigned long STEP_MIN_INTERVAL = 480;         // tranh 1 buoc bi dem thanh 3-4 buoc
+const unsigned long STEP_MAX_INTERVAL = 1700;        // buoc cham vua phai
 const unsigned long STEP_ACTIVE_WINDOW = 2500;
 const unsigned long STEP_BURST_TIMEOUT = 2200;
+const unsigned long STEP_PEAK_MIN_WIDTH_MS = 25;
+const unsigned long STEP_PEAK_MAX_WIDTH_MS = 900;
 
-const float STEP_THRESHOLD_MIN = 0.10f;    // nhạy hơn: giảm xuống 0.08
-const float STEP_THRESHOLD_MAX = 0.32f;    // chống vung tay mạnh tạo ngưỡng quá cao
-const float STEP_MIN_AMPLITUDE = 0.13f;    // biên độ tối thiểu peak-valley
-const float STEP_MAX_SIGNAL = 1.35f;       // loại bỏ va đập quá mạnh
+const float STEP_THRESHOLD_MIN = 0.085f;   // can vung tay ro hon, bot dem lap
+const float STEP_THRESHOLD_MAX = 0.32f;
+const float STEP_MIN_AMPLITUDE = 0.130f;
+const float STEP_MAX_SIGNAL = 1.60f;
 
 // Cảnh báo ngồi lâu. Để test nhanh có thể đổi 60 phút thành 1-2 phút.
 const unsigned long SEDENTARY_LIMIT_MS = 60UL * 60UL * 1000UL;
@@ -481,6 +510,8 @@ void showMessage(String line1);
 void showError(String title, String line2);
 void handleButtons();
 void updateBuzzer();
+void setupBatteryMonitor();
+void updateBatteryMonitor();
 bool mpuWrite8(byte reg, byte value);
 bool mpuReadBytes(byte reg, byte count, byte *data);
 byte mpuRead8(byte reg);
@@ -597,6 +628,7 @@ void setup() {
 
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
+  setupBatteryMonitor();
 
   initButton(buttonA, BTN_A_PIN);
   initButton(buttonB, BTN_B_PIN);
@@ -639,6 +671,7 @@ void setup() {
 
 void loop() {
   handleButtons(); 
+  updateBatteryMonitor();
   updateClock();
   updateWeatherIfNeeded();
 
