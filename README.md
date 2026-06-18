@@ -10,18 +10,7 @@ Thiết bị được thiết kế theo hướng nhỏ gọn, có thể hiển t
 
 ---
 
-## 2. Thông tin đồ án
-
-| Nội dung | Thông tin |
-|---|---|
-| Tên đề tài | IoT-based Medical Alert System for Elderly People |
-| Môn học | Vạn vật kết nối - IoT |
-| Mã học phần / lớp | INOT231780_05 |
-| Nhóm thực hiện | Nhóm 11 |
-| Giảng viên hướng dẫn | ThS. Đinh Công Đoan |
-| Trường | Đại học Công nghệ Kỹ thuật TP. Hồ Chí Minh |
-| Khoa | Công nghệ thông tin |
-| Thời gian | Học kỳ 2, năm học 2025 - 2026 |
+## 2. Thông tin
 
 ### Thành viên thực hiện
 
